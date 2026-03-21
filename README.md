@@ -52,14 +52,26 @@ BookRover/
 
 ## Local Development
 
-Run the backend and frontend in two separate terminals.
+Run the backend and frontend across three terminals. **Start them in order: moto server first, then backend, then frontend.**
 
 ### Prerequisites
 - Python 3.12
 - Node.js 18
 - Git
 
-### Terminal 1 — Backend (FastAPI)
+### Terminal 1 — Local DynamoDB (moto server)
+
+No Docker needed. `moto_server` is a pure-Python DynamoDB emulator included in the dev dependencies.
+
+```powershell
+cd BookRover/backend
+$env:PYTHONPATH = $null
+.venv\Scripts\python.exe -m moto.server -p 8001
+```
+
+Leave this running. moto server stores data in-memory only — all table data resets when the process stops.
+
+### Terminal 2 — Backend (FastAPI)
 
 ```powershell
 cd BookRover/backend
@@ -74,6 +86,7 @@ $env:APP_ENV = "dev"
 $env:AWS_DEFAULT_REGION = "ap-south-1"
 $env:AWS_ACCESS_KEY_ID = "test"
 $env:AWS_SECRET_ACCESS_KEY = "test"
+$env:DYNAMODB_ENDPOINT_URL = "http://localhost:8001"
 $env:PYTHONPATH = $null  # required on Windows if a global Python is also installed
 
 # Start the backend
@@ -83,9 +96,7 @@ $env:PYTHONPATH = $null  # required on Windows if a global Python is also instal
 Backend runs at: http://localhost:8000  
 OpenAPI docs: http://localhost:8000/docs
 
-> **Note:** In `dev` mode the app uses a local DynamoDB (moto-based in tests) or real DynamoDB if AWS credentials are configured. For local UI testing without real AWS, set dummy credentials as shown above — the backend will start but DynamoDB calls will fail unless you also run a local DynamoDB instance.
-
-### Terminal 2 — Frontend (React)
+### Terminal 3 — Frontend (React)
 
 ```powershell
 cd BookRover/frontend

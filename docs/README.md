@@ -4,14 +4,18 @@ Project documentation — AWS setup guides, runbooks, and how-to guides.
 
 ## Contents (to be created in Phase 4)
 
-- `aws-setup-guide.md` — Step-by-step AWS Console setup for all services.
-- `local-dev-guide.md` — How to run the app locally for development.
-- `deployment-guide.md` — How to deploy backend and frontend to AWS.
-- `runbook.md` — Operational runbook (what to do if something breaks).
+All guides live inside arc42 section subfolders — never as loose files directly under `docs/`.
+
+| File | Arc42 Section | Purpose |
+|------|--------------|---------|
+| `08_cross_cutting_concepts/local-dev-guide.md` | Cross-cutting | How to run the app locally for development |
+| `08_cross_cutting_concepts/runbook.md` | Cross-cutting | Operational runbook (what to do if something breaks) |
+| `07_deployment_view/aws-setup-guide.md` | Deployment | Step-by-step AWS Console setup for all services |
+| `07_deployment_view/deployment-guide.md` | Deployment | How to deploy backend and frontend to AWS |
 
 ---
 
-## Local Dev — DynamoDB Options (notes for local-dev-guide.md)
+## Local Dev — DynamoDB Options (notes for `08_cross_cutting_concepts/local-dev-guide.md`)
 
 The app requires a local DynamoDB substitute when developing and testing on your laptop.
 There are two options depending on what's available on your machine:
