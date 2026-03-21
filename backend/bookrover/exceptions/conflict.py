@@ -12,15 +12,40 @@ class BookRoverConflictError(Exception):
 class DuplicateEmailError(BookRoverConflictError):
     """Raised when an email address is already registered in the system."""
 
+    def __init__(self, email: str) -> None:
+        super().__init__(f"Email '{email}' is already registered.")
+        self.email = email
+
 
 class ActiveSellersExistError(BookRoverConflictError):
     """Raised when attempting to delete a group leader who has active sellers assigned."""
+
+    def __init__(self, group_leader_id: str, seller_count: int) -> None:
+        super().__init__(
+            f"Cannot delete group leader '{group_leader_id}': "
+            f"{seller_count} active seller(s) are still assigned."
+        )
+        self.group_leader_id = group_leader_id
+        self.seller_count = seller_count
 
 
 class InventoryAssociatedError(BookRoverConflictError):
     """Raised when attempting to delete a bookstore that has associated inventory or pending returns."""
 
+    def __init__(self, bookstore_id: str) -> None:
+        super().__init__(
+            f"Cannot delete bookstore '{bookstore_id}': it has associated inventory or pending returns."
+        )
+        self.bookstore_id = bookstore_id
+
 
 class BookPartiallySoldError(BookRoverConflictError):
     """Raised when attempting to delete an inventory book that has been partially sold
     (i.e., current_count < initial_count)."""
+
+    def __init__(self, book_id: str) -> None:
+        super().__init__(
+            f"Cannot delete book '{book_id}': it has been partially sold and cannot be removed."
+        )
+        self.book_id = book_id
+
