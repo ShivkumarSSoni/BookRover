@@ -485,11 +485,11 @@ These arc42 sections are cross-cutting framing — they inform all 4+1 views but
 |---|---|---|---|
 | +1 Scenarios | Use case: all actors + primary use cases | `01_introduction_and_goals/diagrams/scenarios_use_cases.puml` | `01_introduction_and_goals/` |
 | Context | System context: BookRover ↔ actors + external systems | `03_context_and_scope/diagrams/context_system_context.puml` | `03_context_and_scope/` |
-| Logical | Domain class diagram: all entities + relationships | `05_building_block_view/diagrams/logical_domain_classes.puml` | `05_building_block_view/` |
-| Development | Component diagram: bookrover package layers | `05_building_block_view/diagrams/development_layers.puml` | `05_building_block_view/` |
+| Logical | Domain class diagram: all entities + relationships | `05_building_block_view/diagrams/logical/logical_domain_classes.puml` | `05_building_block_view/` |
+| Development | Component diagram: bookrover package layers | `05_building_block_view/diagrams/development/development_layers.puml` | `05_building_block_view/` |
 | Physical | Deployment diagram: full AWS infrastructure | `07_deployment_view/diagrams/physical_aws_deployment.puml` | `07_deployment_view/` |
-| Process | Sequence: Create Sale flow | `06_runtime_view/diagrams/process_create_sale.puml` | `06_runtime_view/` |
-| Process | Sequence: Submit Return flow | `06_runtime_view/diagrams/process_submit_return.puml` | `06_runtime_view/` |
+| Process | Sequence: Create Sale flow | `06_runtime_view/diagrams/process/process_create_sale.puml` | `06_runtime_view/` |
+| Process | Sequence: Submit Return flow | `06_runtime_view/diagrams/process/process_submit_return.puml` | `06_runtime_view/` |
 
 > Process diagrams are added separately. All other diagrams must exist before any code is written.
 

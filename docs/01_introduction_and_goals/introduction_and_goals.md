@@ -29,9 +29,7 @@ Listed in priority order:
 ## 1.2a Use Case Diagram (+1 Scenarios View)
 
 > Source: [diagrams/scenarios_use_cases.puml](diagrams/scenarios_use_cases.puml)
-> Rendered PNG committed alongside the source file.
-
-![Use Case Diagram](./diagrams/scenarios_use_cases.png)
+> Export PNG from VS Code (`Alt+D` → right-click → Export Current Diagram) and commit alongside the `.puml`.
 
 ---
 

@@ -5,9 +5,7 @@
 BookRover sits at the centre of a consignment book-selling workflow. The diagram below shows what is inside the system and what is external.
 
 > Source: [diagrams/context_system_context.puml](diagrams/context_system_context.puml)
-> Rendered PNG committed alongside the source file.
-
-![System Context Diagram](./diagrams/context_system_context.png)
+> Export PNG from VS Code (`Alt+D` → right-click → Export Current Diagram) and commit alongside the `.puml`.
 
 
 ```

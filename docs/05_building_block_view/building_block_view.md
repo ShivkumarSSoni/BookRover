@@ -4,15 +4,13 @@
 
 ### Logical View — Domain Class Diagram
 
-> Source: [diagrams/logical_domain_classes.puml](diagrams/logical_domain_classes.puml)
-
-![Domain Class Diagram](./diagrams/logical_domain_classes.png)
+> Source: [diagrams/logical/logical_domain_classes.puml](diagrams/logical/logical_domain_classes.puml)
+> Export PNG from VS Code (`Alt+D` → right-click → Export Current Diagram) and commit alongside the `.puml`.
 
 ### Development View — Backend Layer Architecture
 
-> Source: [diagrams/development_layers.puml](diagrams/development_layers.puml)
-
-![Development Layer Diagram](./diagrams/development_layers.png)
+> Source: [diagrams/development/development_layers.puml](diagrams/development/development_layers.puml)
+> Export PNG from VS Code (`Alt+D` → right-click → Export Current Diagram) and commit alongside the `.puml`.
 
 ---
 
