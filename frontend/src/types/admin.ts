@@ -135,4 +135,43 @@ export namespace BookRover {
     books: Book[];
     summary: InventorySummary;
   }
+
+  // ── Sale types ────────────────────────────────────────────────────────────
+
+  export interface SaleItemCreate {
+    book_id: string;
+    quantity_sold: number;
+  }
+
+  export interface SaleCreate {
+    buyer_first_name: string;
+    buyer_last_name: string;
+    buyer_country_code: string;
+    buyer_phone: string;
+    items: SaleItemCreate[];
+  }
+
+  export interface SaleItemResponse {
+    book_id: string;
+    book_name: string;
+    language: string;
+    quantity_sold: number;
+    selling_price: number;
+    subtotal: number;
+  }
+
+  export interface SaleResponse {
+    sale_id: string;
+    seller_id: string;
+    bookstore_id: string;
+    buyer_first_name: string;
+    buyer_last_name: string;
+    buyer_country_code: string;
+    buyer_phone: string;
+    sale_items: SaleItemResponse[];
+    total_books_sold: number;
+    total_amount_collected: number;
+    sale_date: string;
+    created_at: string;
+  }
 }

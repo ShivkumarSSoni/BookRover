@@ -5,6 +5,7 @@
  * - /admin → AdminPage (Admin feature)
  * - /register → RegisterPage (Seller Registration)
  * - /inventory → InventoryPage (Seller Inventory)
+ * - /new-buyer → NewBuyerPage (Record a Sale)
  * - * → redirect to /register (new users start here)
  *
  * Seller routes are wrapped in SellerProvider so all seller pages
@@ -16,6 +17,7 @@ import { SellerProvider } from './context/SellerContext';
 import AdminPage from './pages/AdminPage';
 import RegisterPage from './pages/RegisterPage';
 import InventoryPage from './pages/InventoryPage';
+import NewBuyerPage from './pages/NewBuyerPage';
 
 export default function App() {
   return (
@@ -33,6 +35,14 @@ export default function App() {
           element={
             <SellerProvider>
               <InventoryPage />
+            </SellerProvider>
+          }
+        />
+        <Route
+          path="/new-buyer"
+          element={
+            <SellerProvider>
+              <NewBuyerPage />
             </SellerProvider>
           }
         />

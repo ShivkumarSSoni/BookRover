@@ -5,7 +5,6 @@ AbstractInventoryService injected via Depends(). No repository, no DynamoDB,
 no moto required.
 """
 
-from decimal import Decimal
 from unittest.mock import MagicMock
 
 import pytest

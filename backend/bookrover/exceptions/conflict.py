@@ -49,3 +49,13 @@ class BookPartiallySoldError(BookRoverConflictError):
         )
         self.book_id = book_id
 
+
+class SellerPendingReturnError(BookRoverConflictError):
+    """Raised when a seller's status is 'pending_return' and cannot record new sales."""
+
+    def __init__(self, seller_id: str) -> None:
+        super().__init__(
+            f"Seller '{seller_id}' is pending return and cannot record new sales."
+        )
+        self.seller_id = seller_id
+
