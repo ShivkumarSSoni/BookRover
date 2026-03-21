@@ -312,6 +312,45 @@ frontend/
 
 Naming follows language-idiomatic standards for each layer. Do not mix conventions across languages.
 
+### Namespace — BookRover
+
+All interfaces, classes, and types in both the backend and frontend must belong to the `BookRover` namespace. Each language expresses this differently due to language constraints:
+
+**Python backend** — the `bookrover` package IS the namespace:
+- Python's import system requires lowercase package names. `bookrover` (lowercase) is the Python expression of the `BookRover` namespace.
+- Every class (service, repository, ABC, Pydantic model, exception) must be defined inside the `bookrover` package hierarchy — never as a standalone script or top-level module outside the package.
+- The qualified name of any class is always `bookrover.<layer>.<module>.ClassName`.
+  ```
+  bookrover.services.inventory_service.InventoryService
+  bookrover.interfaces.abstract_inventory_service.AbstractInventoryService
+  bookrover.repositories.dynamodb_inventory_repository.DynamoDBInventoryRepository
+  bookrover.models.book.BookResponse
+  bookrover.exceptions.not_found.BookNotFoundError
+  ```
+- Import pattern: `from bookrover.services.inventory_service import InventoryService`
+
+**TypeScript frontend** — explicit `namespace BookRover` blocks:
+- All interfaces, types, classes, and enums must be declared inside an `export namespace BookRover { }` block.
+- Namespace declarations live in `src/types/` — one file per domain (e.g., `inventory.ts`, `sales.ts`) plus a barrel `src/types/index.ts` that re-exports all.
+- React functional components are top-level named exports (JSX requirement). Their prop interfaces are declared inside the `BookRover` namespace.
+- Usage pattern:
+  ```typescript
+  // src/types/inventory.ts
+  export namespace BookRover {
+    export interface Book { book_id: string; title: string; language: string; }
+    export interface BookListResponse { books: Book[]; total: number; }
+  }
+
+  // src/types/index.ts
+  export { BookRover } from './inventory';
+
+  // usage in a component
+  import { BookRover } from '../types';
+  const book: BookRover.Book = { ... };
+  ```
+
+---
+
 ### Python Backend — PEP 8
 
 | Element | Convention | Example |
@@ -334,8 +373,9 @@ Naming follows language-idiomatic standards for each layer. Do not mix conventio
 |---------|-----------|---------|
 | Component / page file | `PascalCase.tsx` | `InventoryPage.tsx`, `BookCard.tsx` |
 | Hook / service / util file | `camelCase.ts` | `useInventory.ts`, `bookService.ts`, `formatCurrency.ts` |
-| Class / Interface / Type | `PascalCase` | `Book`, `SaleItem`, `InventoryResponse` |
-| React component name | `PascalCase` | `BookCard`, `SaleTable`, `NewBuyerPage` |
+| Types file | `camelCase.ts` in `src/types/` | `inventory.ts`, `sales.ts`, `index.ts` |
+| Class / Interface / Type | `PascalCase` inside `namespace BookRover` | `BookRover.Book`, `BookRover.SaleItem` |
+| React component name | `PascalCase` (top-level export) | `BookCard`, `SaleTable`, `NewBuyerPage` |
 | Method / function | `camelCase` | `createBook()`, `formatCurrency()`, `handleSubmit()` |
 | Variable / parameter | `camelCase` | `bookId`, `sellerName`, `unitPrice` |
 | Constant | `UPPER_SNAKE_CASE` | `MAX_PHONE_LENGTH`, `DEFAULT_PAGE_SIZE` |
