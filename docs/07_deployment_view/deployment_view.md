@@ -3,7 +3,8 @@
 ## 7.0 Deployment Diagram
 
 > Source: [diagrams/physical_aws_deployment.puml](diagrams/physical_aws_deployment.puml)
-> Export PNG from VS Code (`Alt+D` → right-click → Export Current Diagram) and commit alongside the `.puml`.
+
+![AWS Deployment Diagram](./diagrams/physical_aws_deployment.png)
 
 ---
 
