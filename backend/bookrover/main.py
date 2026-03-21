@@ -59,6 +59,22 @@ def _create_local_tables(settings: Settings) -> None:
                 }
             ],
         },
+        {
+            "TableName": settings.get_table_name("inventory"),
+            "KeySchema": [{"AttributeName": "book_id", "KeyType": "HASH"}],
+            "AttributeDefinitions": [
+                {"AttributeName": "book_id", "AttributeType": "S"},
+                {"AttributeName": "seller_id", "AttributeType": "S"},
+            ],
+            "BillingMode": "PAY_PER_REQUEST",
+            "GlobalSecondaryIndexes": [
+                {
+                    "IndexName": "seller-id-index",
+                    "KeySchema": [{"AttributeName": "seller_id", "KeyType": "HASH"}],
+                    "Projection": {"ProjectionType": "ALL"},
+                }
+            ],
+        },
     ]
 
     for definition in table_definitions:
@@ -96,10 +112,11 @@ def create_app() -> FastAPI:
     )
 
     # Routers are registered here as features are built:
-    from bookrover.routers import admin, lookup, sellers
+    from bookrover.routers import admin, inventory, lookup, sellers
     app.include_router(admin.router)
     app.include_router(sellers.router)
     app.include_router(lookup.router)
+    app.include_router(inventory.router)
 
     return app
 

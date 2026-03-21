@@ -89,4 +89,50 @@ export namespace BookRover {
     group_leader_id: string;
     bookstore_id: string;
   }
+
+  // ── Inventory types ───────────────────────────────────────────────────────
+
+  export interface Book {
+    book_id: string;
+    seller_id: string;
+    bookstore_id: string;
+    book_name: string;
+    language: string;
+    initial_count: number;
+    current_count: number;
+    cost_per_book: number;
+    selling_price: number;
+    current_books_cost_balance: number;
+    total_books_cost_balance: number;
+    created_at: string;
+    updated_at: string;
+  }
+
+  export interface BookCreate {
+    book_name: string;
+    language: string;
+    initial_count: number;
+    cost_per_book: number;
+    selling_price: number;
+  }
+
+  export interface BookUpdate {
+    book_name?: string;
+    language?: string;
+    cost_per_book?: number;
+    selling_price?: number;
+  }
+
+  export interface InventorySummary {
+    total_books_in_hand: number;
+    total_cost_balance: number;
+    total_initial_cost: number;
+  }
+
+  export interface InventoryResponse {
+    seller_id: string;
+    bookstore_id: string;
+    books: Book[];
+    summary: InventorySummary;
+  }
 }

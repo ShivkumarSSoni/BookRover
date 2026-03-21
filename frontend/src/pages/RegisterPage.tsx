@@ -51,13 +51,14 @@ export default function RegisterPage() {
     setSubmitError(null);
 
     try {
-      await registerSeller({
+      const seller = await registerSeller({
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         email: email.trim(),
         group_leader_id: selectedOption.group_leader_id,
         bookstore_id: selectedOption.bookstore_id,
       });
+      localStorage.setItem('bookrover_seller_id', seller.seller_id);
       navigate('/inventory');
     } catch (err: unknown) {
       const message =

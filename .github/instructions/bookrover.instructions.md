@@ -277,6 +277,34 @@ frontend/
 
 ---
 
+## Feature Build Order
+
+When implementing any new feature, always follow this vertical-slice order. Do not skip layers or implement them out of sequence.
+
+**Backend first:**
+```
+models → ABC → repository → service → router → tests
+```
+1. **models** — Pydantic DTOs (request + response) in `models/`
+2. **ABC** — abstract base classes in `interfaces/` for both the repository and service
+3. **repository** — DynamoDB adapter in `repositories/` implementing the repository ABC
+4. **service** — business logic in `services/` implementing the service ABC, injecting the repository ABC
+5. **router** — HTTP layer in `routers/` injecting the service ABC via `Depends()`
+6. **tests** — unit tests for service (mock repo), unit tests for router (mock service), integration tests (moto)
+
+**Frontend after backend is tested:**
+```
+types → service → hook → page → tests → wire App.tsx
+```
+1. **types** — add interfaces to the `BookRover` namespace in `src/types/`
+2. **service** — API call functions in `src/services/`
+3. **hook** — custom hook in `src/hooks/` for data fetching and state
+4. **page** — React component in `src/pages/`
+5. **tests** — `<Page>.test.tsx` beside the page file
+6. **wire** — add the route to `src/App.tsx`
+
+---
+
 ## Git Workflow
 
 - **Never commit directly to `main`** — use feature branches and pull requests.
