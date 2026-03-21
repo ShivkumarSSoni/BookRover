@@ -111,7 +111,7 @@ Admin (separate login)
 - `pending_return` — seller has requested to switch group leader; must complete return first.
 
 **GSI (Global Secondary Index):**
-- `group_leader_id-index` on `group_leader_id` — enables fetching all sellers under a group leader for the dashboard.
+- `group-leader-id-index` on `group_leader_id` — enables fetching all sellers under a group leader for the dashboard.
 
 **Access patterns:**
 - Get seller by `seller_id`
@@ -144,8 +144,8 @@ Admin (separate login)
 - `current_total_books_count_balance` = sum of `current_count` across all books for a seller
 
 **GSI:**
-- `seller_id-index` on `seller_id` — list all books for a seller.
-- `bookstore_id-index` on `bookstore_id` — list all books sourced from a bookstore.
+- `seller-id-index` on `seller_id` — list all books for a seller.
+- `bookstore-id-index` on `bookstore_id` — list all books sourced from a bookstore.
 
 **Access patterns:**
 - List all inventory for a seller (GSI: `seller_id-index`)
@@ -174,8 +174,8 @@ Admin (separate login)
 | `created_at` | String (ISO 8601) | | Record creation timestamp |
 
 **GSI:**
-- `seller_id-index` on `seller_id` — list all sales by a seller.
-- `bookstore_id-index` on `bookstore_id` — list all sales from a bookstore's inventory.
+- `seller-id-index` on `seller_id` — list all sales by a seller.
+- `bookstore-id-index` on `bookstore_id` — list all sales from a bookstore's inventory.
 
 ---
 
@@ -217,7 +217,7 @@ Stored as a **nested list** inside the `Sale` document (not a separate table).
 - `completed` — return confirmed; seller status reset to allow group leader switch if requested.
 
 **GSI:**
-- `seller_id-index` on `seller_id` — get all returns by a seller.
+- `seller-id-index` on `seller_id` — get all returns by a seller.
 
 ---
 
@@ -243,10 +243,10 @@ Stored as a **nested list** inside the `Return` document.
 | `bookrover-admins-dev` | `admin_id` | — |
 | `bookrover-bookstores-dev` | `bookstore_id` | — |
 | `bookrover-group-leaders-dev` | `group_leader_id` | — |
-| `bookrover-sellers-dev` | `seller_id` | `group_leader_id-index` |
-| `bookrover-inventory-dev` | `book_id` | `seller_id-index`, `bookstore_id-index` |
-| `bookrover-sales-dev` | `sale_id` | `seller_id-index`, `bookstore_id-index` |
-| `bookrover-returns-dev` | `return_id` | `seller_id-index` |
+| `bookrover-sellers-dev` | `seller_id` | `group-leader-id-index` |
+| `bookrover-inventory-dev` | `book_id` | `seller-id-index`, `bookstore-id-index` |
+| `bookrover-sales-dev` | `sale_id` | `seller-id-index`, `bookstore-id-index` |
+| `bookrover-returns-dev` | `return_id` | `seller-id-index` |
 
 ---
 

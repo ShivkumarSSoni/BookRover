@@ -107,7 +107,7 @@ Supporting Services:
 
 **Configuration**:
 - Runtime: **Python 3.12**
-- Handler: `app.main.handler` (Mangum wraps FastAPI as a Lambda handler)
+- Handler: `bookrover.main.handler` (Mangum wraps FastAPI as a Lambda handler)
 - Memory: **256 MB** (sufficient for FastAPI + boto3; adjust if needed)
 - Timeout: **30 seconds** (DynamoDB operations are fast; 30s is generous)
 - Environment variables:

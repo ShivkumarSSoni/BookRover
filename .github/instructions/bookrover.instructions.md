@@ -107,7 +107,8 @@ Apply all five pillars in every decision made for this project:
 ### Folder Structure
 ```
 backend/
-├── app/
+├── bookrover/                  # The bookrover Python package — this IS the BookRover namespace
+│   ├── __init__.py
 │   ├── main.py                 # FastAPI app factory, middleware, router registration
 │   ├── config.py               # Typed config via pydantic-settings BaseSettings
 │   ├── dependencies.py         # Shared FastAPI Depends() — db client, auth, pagination
@@ -213,6 +214,7 @@ frontend/
 │   ├── hooks/                  # Custom React hooks (useInventory, useSales, etc.)
 │   ├── services/               # API call functions — axios instances, typed request/response
 │   ├── context/                # React Context providers (AuthContext, SellerContext)
+│   ├── types/                  # BookRover namespace declarations — one file per domain + index barrel
 │   └── utils/                  # Shared utilities (formatCurrency, formatDate, etc.)
 ├── tests/                      # Jest + React Testing Library tests
 ├── public/
