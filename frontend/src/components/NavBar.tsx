@@ -49,7 +49,7 @@ export default function NavBar({ role }: NavBarProps) {
       <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
         {/* Left: logo + seller name */}
         <div className="flex items-center gap-3 min-w-0">
-          <span className="text-lg font-bold text-blue-600 flex-shrink-0">BookRover</span>
+          <span className="text-lg font-brand font-semibold text-blue-600 flex-shrink-0">BookRover</span>
           {sellerName && (
             <span className="text-sm font-medium text-gray-700 truncate">{sellerName}</span>
           )}

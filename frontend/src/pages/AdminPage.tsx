@@ -28,7 +28,7 @@ export default function AdminPage() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 px-4 py-4">
-        <h1 className="text-xl font-bold text-gray-900">BookRover Admin</h1>
+        <h1 className="text-xl font-brand font-semibold text-blue-600">BookRover Admin</h1>
         <p className="text-sm text-gray-500">Manage group leaders and bookstores</p>
       </header>
 

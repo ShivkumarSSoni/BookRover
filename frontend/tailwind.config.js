@@ -5,7 +5,13 @@ export default {
     './src/**/*.{ts,tsx}',
   ],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        // Barlow SemiBold/Bold — closest freely available match to Siemens Sans.
+        // Used exclusively for the "BookRover" brand wordmark across all pages.
+        brand: ['Barlow', 'sans-serif'],
+      },
+    },
   },
   plugins: [],
 }

@@ -75,7 +75,7 @@ export default function RegisterPage() {
       <div className="w-full max-w-lg">
         {/* Header */}
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-gray-900">BookRover</h1>
+          <h1 className="text-2xl font-brand font-semibold text-blue-600">BookRover</h1>
           <p className="mt-1 text-base text-gray-500">Create your seller profile</p>
         </div>
 
