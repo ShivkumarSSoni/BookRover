@@ -23,10 +23,6 @@ Each Architecture Decision Record (ADR) is maintained as a separate file for cla
 3. Add a row to the index table above.
 4. Reference related ADRs where relevant.
 
----
-
-## ADR-001: Serverless Architecture (Lambda + API Gateway)
-
 **Status**: Accepted
 
 **Context**: The app serves a small friend group with unpredictable, low traffic. Cost must be near $0.
