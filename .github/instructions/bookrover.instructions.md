@@ -19,6 +19,54 @@ Every piece of code you generate must reflect the standards of a production-grad
 
 ---
 
+## Architecture Patterns
+
+Apply the following architecture and design patterns consistently. These are not optional — they are what make the codebase clean, testable, and maintainable.
+
+### Hexagonal Architecture (Ports and Adapters)
+
+The core business domain (services) must have **zero knowledge** of external systems (DynamoDB, Lambda, HTTP). External systems connect to the domain through adapters:
+
+- **Inbound adapters**: FastAPI routers (HTTP → service calls); Mangum (Lambda event → ASGI)
+- **Outbound adapters**: Repositories (service calls → DynamoDB via boto3)
+- **Benefit**: The entire service layer is testable without any AWS dependency — swap DynamoDB for moto in tests, swap Lambda for uvicorn locally. Nothing in the domain changes.
+
+### Repository Pattern
+
+`repositories/` is the **only** layer permitted to call DynamoDB. Services call repositories through injected abstractions — never boto3 directly. This means:
+- DynamoDB access patterns are centralized and easy to optimize.
+- Services are unit-testable by injecting a mock repository.
+- Switching from DynamoDB to another store requires changes in one place only.
+
+### Service Layer Pattern
+
+`services/` owns **all business rules** and orchestration. Routers handle HTTP concerns (status codes, request parsing, response formatting). Repositories handle data concerns. Services handle everything in between. No business logic in routers. No DynamoDB calls in services.
+
+### API Gateway Pattern
+
+AWS API Gateway is the **single, controlled entry point** into the backend. All requests are validated (CORS, throttling) before reaching Lambda. The FastAPI app behind it treats API Gateway as a transport detail — not a business concern.
+
+### Serverless / Event-Driven Pattern
+
+Lambda functions are **stateless** — no in-memory state between invocations. All state lives in DynamoDB. Each Lambda invocation is independent. Design every handler to be safe to retry (idempotency).
+
+---
+
+### Design Patterns
+
+Apply these Gang-of-Four and modern design patterns where they naturally fit:
+
+| Pattern | Where Applied in BookRover |
+|---------|--------------------------|
+| **Dependency Injection** | FastAPI `Depends()` for DB client, repositories, settings — never instantiate dependencies inside functions |
+| **Factory** | `app/main.py` is the app factory — creates the FastAPI instance, registers all routers, applies middleware; never scattered across files |
+| **DTO (Data Transfer Object)** | Pydantic models are the DTOs between HTTP ↔ service ↔ repository layers; never pass raw dicts between layers |
+| **Singleton** | `pydantic-settings` `BaseSettings` is instantiated once and shared via `Depends(get_settings)` |
+| **Strategy** | Dashboard sorting: `sort_by` and `sort_order` are injected as parameters; the sorting logic is interchangeable without changing the service structure |
+| **Snapshot** | `SaleItem` and `ReturnItem` capture `book_name`, `language`, and `price` at transaction time — historical records remain accurate even if the book's details are later modified |
+
+---
+
 ## AWS Well-Architected Framework
 
 Apply all five pillars in every decision made for this project:
@@ -63,19 +111,60 @@ backend/
 │   ├── main.py                 # FastAPI app factory, middleware, router registration
 │   ├── config.py               # Typed config via pydantic-settings BaseSettings
 │   ├── dependencies.py         # Shared FastAPI Depends() — db client, auth, pagination
-│   ├── routers/                # One router file per domain (inventory, sales, sellers, etc.)
-│   ├── models/                 # Pydantic BaseModel for requests and responses
+│   ├── routers/                # HTTP layer — parse requests, call services, return responses
+│   ├── models/                 # Pydantic DTOs — request bodies and response models
+│   ├── interfaces/             # Abstract base classes (ABC) for services and repositories
 │   ├── services/               # Business logic layer — no DynamoDB calls here
 │   ├── repositories/           # DynamoDB data access layer — only place boto3 is called
+│   ├── exceptions/             # Domain exception classes (e.g., BookNotFoundError)
 │   └── utils/                  # Shared utilities (id generation, timestamp helpers, etc.)
 ├── tests/
-│   ├── unit/                   # Test services with mocked repositories
-│   └── integration/            # Test full request→response with mocked AWS (moto)
+│   ├── unit/
+│   │   ├── test_services/      # Services tested with mocked repository ABCs
+│   │   └── test_routers/       # Routers tested with mocked service ABCs
+│   └── integration/            # Full HTTP request → DynamoDB round trip via moto
 ├── requirements.txt            # Production dependencies only
 ├── requirements-dev.txt        # Dev/test dependencies (pytest, moto, black, ruff, etc.)
 ├── .env.example                # Template — never commit real .env files
 └── Makefile                    # Commands: make run, make test, make lint, make coverage
 ```
+
+### Strict Layer Isolation Rules
+
+These rules are **non-negotiable**. Every violation breaks testability and maintainability.
+
+**Dependency direction — strictly one way, no skipping:**
+```
+Router → Service → Repository → DynamoDB
+```
+- Routers call services only — never repositories directly.
+- Services call repositories only — never boto3 or DynamoDB directly.
+- Repositories call DynamoDB only — they never call services or other repositories.
+
+**Abstract Base Classes (ABCs) as layer contracts:**
+- Every service has an ABC in `interfaces/` — e.g., `AbstractInventoryService`.
+- Every repository has an ABC in `interfaces/` — e.g., `AbstractInventoryRepository`.
+- Routers depend on the service ABC — never the concrete service class.
+- Services depend on the repository ABC — never the concrete repository class.
+- This makes every layer swappable and independently testable.
+
+**Data flow between layers:**
+- Router → Service: pass Pydantic request model fields as typed arguments — never pass the raw request object into the service.
+- Service → Router: return Pydantic response models — never raw dicts.
+- Service → Repository: pass primitive typed arguments (IDs, strings, Decimals) — never Pydantic HTTP models.
+- Repository → Service: return domain data as typed dicts or dataclasses — never raw DynamoDB response dicts.
+
+**Exception hierarchy — domain exceptions only cross layer boundaries:**
+- Repositories raise domain exceptions from `exceptions/` (e.g., `BookNotFoundError`, `DuplicateEmailError`).
+- Services may raise additional domain exceptions for business rule violations.
+- Routers catch domain exceptions and translate them to HTTP responses — boto3 `ClientError` must never propagate to the router.
+- No `except Exception` in routers — only catch specific domain exceptions.
+
+**Per-layer testability:**
+- `tests/unit/test_services/` — instantiate the concrete service with a **mocked** repository ABC. No moto, no DynamoDB, no HTTP client needed.
+- `tests/unit/test_routers/` — use FastAPI `TestClient` with a **mocked** service ABC injected via `Depends()`. No repository, no DynamoDB needed.
+- `tests/integration/` — use FastAPI `TestClient` with the real service and repository wired together, DynamoDB mocked via `moto`.
+- Each layer must be fully testable without knowledge of any other layer's implementation.
 
 ### FastAPI Conventions
 - Use `APIRouter(prefix="...", tags=["..."])` — one router per domain.
@@ -156,9 +245,11 @@ frontend/
 
 ### Backend (pytest)
 - Use `pytest` with `pytest-asyncio` for async route handlers.
-- Use `moto` to mock all DynamoDB calls — **never call real AWS services in tests**.
-- **Unit tests**: test service layer logic with mocked repository objects.
-- **Integration tests**: test full HTTP request → response cycle with mocked AWS.
+- Use `moto` to mock DynamoDB in integration tests — **never call real AWS services in tests**.
+- **Router unit tests** (`tests/unit/test_routers/`): use FastAPI `TestClient` with a mocked service ABC injected via `Depends()`. No repository, no DynamoDB needed.
+- **Service unit tests** (`tests/unit/test_services/`): instantiate the concrete service with a mocked repository ABC. No moto, no HTTP client needed.
+- **Integration tests** (`tests/integration/`): wire real service + real repository together; mock only DynamoDB via `moto`.
+- Each layer must be fully testable without knowledge of any other layer's implementation.
 - Test file naming: `test_<module_name>.py`.
 - Every test function name describes what it tests: `test_create_book_returns_201_for_valid_input`.
 - Target **≥ 80% code coverage** on `services/` and `routers/`.
@@ -203,6 +294,59 @@ frontend/
 - **Inline comments**: only for non-obvious logic — never comment what the code obviously does.
 - **API endpoints**: always populate `summary` and `description` in FastAPI route decorators for OpenAPI docs.
 - **TODOs**: format as `# TODO(scope): description` — never leave unexplained TODOs.
+
+---
+
+## Code Organization
+
+- **All logic in classes**: Every service, repository, and router handler lives inside a class. No naked functions at module level (except utility functions in `utils/` that are truly stateless helpers with no dependencies).
+- **ABCs as contracts**: Every concrete class implements its corresponding ABC from `interfaces/`. Never instantiate a concrete class where the ABC is expected.
+- **Constructor injection in services**: e.g., `InventoryService.__init__(self, repository: AbstractInventoryRepository)` — the repository is injected into the constructor, never instantiated inside the service.
+- **Constructor injection in repositories**: e.g., `DynamoDBInventoryRepository.__init__(self, table)` — the DynamoDB table resource is injected, never fetched inside the repository constructor.
+- **FastAPI wiring**: `Depends()` at the router level is the DI entry point — it builds the dependency graph (`DynamoDB resource → repository → service`) and injects the correct concrete implementation at request time.
+- **One class per file**: Each concrete service, repository, or ABC lives in its own file. File name must match the class it contains.
+
+---
+
+## Naming Conventions
+
+Naming follows language-idiomatic standards for each layer. Do not mix conventions across languages.
+
+### Python Backend — PEP 8
+
+| Element | Convention | Example |
+|---------|-----------|---------|
+| Package / module | `snake_case` | `bookrover`, `inventory_service`, `book_repository` |
+| Class | `PascalCase` | `InventoryService`, `AbstractBookRepository` |
+| Method | `snake_case` | `create_book()`, `list_books()`, `get_book_by_id()` |
+| Variable / parameter | `snake_case` | `book_id`, `seller_name`, `unit_price` |
+| Protected attribute | `self._name` | `self._repository`, `self._settings` |
+| Public attribute | `self.name` | `self.book_id`, `self.created_at` |
+| Constant | `UPPER_SNAKE_CASE` | `MAX_PHONE_LENGTH = 15`, `DEFAULT_PAGE_SIZE = 20` |
+| File | `snake_case.py` | `inventory_service.py`, `book_repository.py` |
+
+- Never use an `m_` prefix for instance attributes — use `self._name` for protected, `self.name` for public.
+- Never use PascalCase or camelCase for method or variable names in Python.
+
+### TypeScript / React Frontend — TypeScript Conventions
+
+| Element | Convention | Example |
+|---------|-----------|---------|
+| Component / page file | `PascalCase.tsx` | `InventoryPage.tsx`, `BookCard.tsx` |
+| Hook / service / util file | `camelCase.ts` | `useInventory.ts`, `bookService.ts`, `formatCurrency.ts` |
+| Class / Interface / Type | `PascalCase` | `Book`, `SaleItem`, `InventoryResponse` |
+| React component name | `PascalCase` | `BookCard`, `SaleTable`, `NewBuyerPage` |
+| Method / function | `camelCase` | `createBook()`, `formatCurrency()`, `handleSubmit()` |
+| Variable / parameter | `camelCase` | `bookId`, `sellerName`, `unitPrice` |
+| Constant | `UPPER_SNAKE_CASE` | `MAX_PHONE_LENGTH`, `DEFAULT_PAGE_SIZE` |
+
+### DynamoDB — Database Layer
+
+| Element | Convention | Example |
+|---------|-----------|---------|
+| Table name | `kebab-case-<env>` | `bookrover-books-dev`, `bookrover-sales-prod` |
+| Attribute name | `snake_case` | `book_id`, `seller_id`, `created_at` |
+| GSI name | `kebab-case-index` | `seller-id-index`, `bookstore-id-index` |
 
 ---
 

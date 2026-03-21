@@ -51,16 +51,29 @@ Cross-cutting concepts are rules, patterns, and decisions that apply consistentl
 
 ## 8.5 Testing Strategy
 
-| Level | Tool | Scope | AWS Needed? |
-|-------|------|-------|-------------|
-| Unit | `pytest` + `moto` in-memory | Service layer logic; mocked repositories | No |
-| Integration | `pytest` + `moto` in-memory | Full HTTP request → DynamoDB round trip | No |
-| Manual UI | Browser + `moto_server` or DynamoDB Local | All pages and flows | No |
-| Smoke | Browser on deployed AWS app | Critical paths post-deploy | Yes (once) |
+### Layer Isolation — Each Layer Tested Independently
 
-- Test naming: `test_<action>_<condition>_<expected_result>` — e.g., `test_create_sale_when_quantity_exceeds_stock_returns_400`.
-- Coverage target: ≥ 80% on `services/` and `routers/`.
-- Run: `pytest --cov=app --cov-report=term-missing`.
+| Level | Location | Tool | What Is Mocked | AWS Needed? |
+|-------|----------|------|----------------|-------------|
+| **Router unit** | `tests/unit/test_routers/` | `pytest` + FastAPI `TestClient` | Service ABC (mock injected via `Depends()`) | No |
+| **Service unit** | `tests/unit/test_services/` | `pytest` | Repository ABC (passed as mock to service constructor) | No |
+| **Repository integration** | `tests/integration/` | `pytest` + `moto` | DynamoDB (mocked in-memory by moto) | No |
+| **Full stack integration** | `tests/integration/` | `pytest` + `moto` + `TestClient` | DynamoDB only (moto) | No |
+| **Manual UI** | Browser | `moto_server` or DynamoDB Local | N/A | No |
+| **Smoke** | Browser on AWS | None | N/A | Yes (once) |
+
+**Key isolation rules:**
+- Router tests never instantiate a real service — only a mock implementation of the service ABC.
+- Service tests never instantiate a real repository — only a mock implementation of the repository ABC.
+- No test at the unit level touches DynamoDB, boto3, or moto.
+- `moto` is only used in integration tests where real DynamoDB I/O is being verified.
+- Each layer can be built and tested in isolation before the next layer is written.
+
+**Test naming:** `test_<action>_<condition>_<expected_result>`  
+Example: `test_create_sale_when_quantity_exceeds_stock_returns_400`
+
+**Coverage target:** ≥ 80% on `services/` and `routers/`  
+**Run:** `pytest --cov=app --cov-report=term-missing`
 
 ---
 

@@ -1,6 +1,27 @@
 # arc42 — Section 9: Architecture Decisions
 
-Architecture Decision Records (ADRs) document the significant decisions made for BookRover, the context behind them, the options considered, and the rationale for the choice made.
+Each Architecture Decision Record (ADR) is maintained as a separate file for clarity and manageability.
+
+## ADR Index
+
+| ADR | Title | Status |
+|-----|-------|--------|
+| [ADR-001](ADR-001_Serverless_Architecture.md) | Serverless Architecture (Lambda + API Gateway) | Accepted |
+| [ADR-002](ADR-002_DynamoDB_Over_RDS.md) | DynamoDB over RDS | Accepted |
+| [ADR-003](ADR-003_React_TypeScript_Frontend.md) | React + TypeScript + Tailwind CSS for Frontend | Accepted |
+| [ADR-004](ADR-004_Multi_Table_DynamoDB_Design.md) | Multi-Table DynamoDB Design | Accepted |
+| [ADR-005](ADR-005_Mangum_Lambda_Adapter.md) | Mangum as Lambda Adapter for FastAPI | Accepted |
+| [ADR-006](ADR-006_S3_CloudFront_Frontend_Hosting.md) | S3 + CloudFront for Frontend Hosting | Accepted |
+| [ADR-007](ADR-007_Defer_Authentication.md) | Defer Authentication to Phase 6 | Accepted (temporary) |
+| [ADR-008](ADR-008_Moto_Server_For_Local_Dev.md) | moto_server as Local DynamoDB Substitute | Accepted (temporary) |
+| [ADR-009](ADR-009_Strict_Layered_Architecture.md) | Strict Layered Architecture with Abstract Base Classes | Accepted |
+
+## How to Add a New ADR
+
+1. Create a new file: `ADR-0NN_Short_Title.md` in this folder.
+2. Use the structure: Status, Context, Options Considered, Decision, Rationale, Trade-offs Accepted.
+3. Add a row to the index table above.
+4. Reference related ADRs where relevant.
 
 ---
 
@@ -115,7 +136,37 @@ Architecture Decision Records (ADRs) document the significant decisions made for
 
 ---
 
-## ADR-008: moto_server as DynamoDB Substitute (Pre-Docker)
+---
+
+## ADR-009: Strict Layered Architecture with Abstract Base Classes
+
+**Status**: Accepted
+
+**Context**: A layered backend alone is not enough if layers can still directly import concrete implementations from adjacent layers. Without enforced abstractions, any layer can accidentally depend on internal details of another, making isolated testing impossible and refactoring risky.
+
+**Decision**: Enforce strict one-way dependencies through Abstract Base Classes (ABCs) in a dedicated `interfaces/` module. Domain exceptions defined in `exceptions/` are the only thing that crosses layer boundaries.
+
+**Layer contract:**
+```
+Router    →  AbstractService     (from interfaces/)
+Service   →  AbstractRepository  (from interfaces/)
+Repository →  DynamoDB            (boto3 only)
+```
+
+**Rules enforced:**
+- No layer imports a concrete class from an adjacent layer — only the ABC.
+- Concrete classes are injected at runtime via FastAPI `Depends()`.
+- Repositories raise domain exceptions (`exceptions/`) — never boto3 `ClientError`.
+- Routers catch only domain exceptions — boto3 errors never propagate above the repository.
+- Raw DynamoDB response dicts never leave the repository layer.
+
+**Rationale**:
+- Routers can be tested with a mocked service without any database.
+- Services can be tested with a mocked repository without moto or DynamoDB Local.
+- Each layer can be developed and validated independently.
+- Swapping DynamoDB for another store requires changes only in `repositories/` and `interfaces/` — zero changes to services or routers.
+
+**Trade-offs accepted**: More upfront boilerplate (ABCs + exceptions module). This cost is paid once and saves significant rework later as the codebase grows.
 
 **Status**: Accepted (temporary)
 

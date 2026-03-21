@@ -46,24 +46,45 @@ API Tier            →   FastAPI on Lambda (API Gateway)
 Data Tier           →   DynamoDB (7 tables)
 ```
 
-The backend follows a **layered architecture**:
+The backend follows a **strict layered architecture** enforced by Abstract Base Classes (ABCs):
 
 ```
 HTTP Request
     ↓
-Router (FastAPI route handler)       — validates input, returns HTTP response
-    ↓
-Service (business logic)             — applies business rules, orchestrates repositories
-    ↓
-Repository (data access)             — the only layer that calls DynamoDB
+Router (FastAPI route handler)       — HTTP only: parse input, call service ABC, return response
+    ↓         (depends on AbstractService)
+Service (business logic)             — business rules only: no HTTP, no DynamoDB
+    ↓         (depends on AbstractRepository)
+Repository (data access)             — DynamoDB only: the only layer that calls boto3
     ↓
 DynamoDB
 ```
 
+**ABCs enforce the contract between layers:**
+- `interfaces/` contains one ABC per service and one ABC per repository.
+- Routers depend on `AbstractService` — never on the concrete service class.
+- Services depend on `AbstractRepository` — never on the concrete repository class.
+- Concrete classes are injected at runtime via FastAPI `Depends()` — each layer is swappable.
+
+**Data types at each boundary:**
+- Router → Service: typed primitive arguments extracted from the Pydantic request model.
+- Service → Router: Pydantic response model — never a raw dict.
+- Service → Repository: primitive types (IDs, strings, Decimals).
+- Repository → Service: typed domain data — never a raw DynamoDB response dict.
+
+**Exceptions cross layer boundaries cleanly:**
+- Repositories raise domain exceptions (`BookNotFoundError`, `DuplicateEmailError`) defined in `exceptions/`.
+- Routers catch only domain exceptions — boto3 errors never propagate above the repository.
+
+**Each layer is independently testable:**
+- Services tested with mocked repository ABCs — no DynamoDB or moto needed.
+- Routers tested with mocked service ABCs — no repository or DynamoDB needed.
+- Integration tests wire all layers together with moto-mocked DynamoDB.
+
 This separation ensures:
-- Business logic is testable without a database (mock the repository).
-- DynamoDB access patterns are centralized in one layer (easy to change or optimize).
-- Routers stay thin — no logic, only HTTP concerns.
+- Business logic is testable without any AWS dependency.
+- DynamoDB access patterns are centralized in one layer.
+- Routers stay thin — HTTP concerns only, zero business logic.
 
 ---
 

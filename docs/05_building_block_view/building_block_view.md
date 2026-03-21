@@ -79,10 +79,10 @@ backend/app/
 ├── config.py            # Typed config via pydantic-settings BaseSettings
 │                        # Reads APP_ENV, DYNAMODB_ENDPOINT_URL, DYNAMODB_REGION, etc.
 │
-├── dependencies.py      # Shared FastAPI Depends() functions
-│                        # get_dynamodb_resource(), get_settings()
+├── dependencies.py      # Shared FastAPI Depends() — injects concrete services/repos
+│                        # get_dynamodb_resource(), get_inventory_service(), etc.
 │
-├── routers/             # HTTP layer — one file per domain
+├── routers/             # HTTP layer — depends on service ABCs; never on repos or DynamoDB
 │   ├── admin.py         # POST/GET/PUT/DELETE /admin/group-leaders, /admin/bookstores
 │   ├── sellers.py       # POST/GET/PUT /sellers, /sellers/{id}/can-switch, /switch-group-leader
 │   ├── inventory.py     # POST/GET/PUT/DELETE /sellers/{id}/inventory
@@ -91,21 +91,28 @@ backend/app/
 │   ├── dashboard.py     # GET /group-leaders/{id}/dashboard
 │   └── lookups.py       # GET /bookstores, GET /group-leaders (for dropdowns)
 │
-├── models/              # Pydantic schemas (request bodies + response models)
+├── models/              # Pydantic DTOs — request bodies and response models only
 │   ├── admin.py
 │   ├── seller.py
 │   ├── inventory.py
 │   ├── sale.py
 │   └── return_model.py
 │
-├── services/            # Business logic — no DynamoDB calls here
+├── interfaces/          # Abstract Base Classes — layer contracts (never instantiated directly)
+│   ├── admin.py             # AbstractAdminService, AbstractBookstoreRepository, AbstractGroupLeaderRepository
+│   ├── seller.py            # AbstractSellerService, AbstractSellerRepository
+│   ├── inventory.py         # AbstractInventoryService, AbstractInventoryRepository
+│   ├── sale.py              # AbstractSaleService, AbstractSaleRepository
+│   └── return_interface.py  # AbstractReturnService, AbstractReturnRepository
+│
+├── services/            # Business logic — implements service ABCs; calls repository ABCs only
 │   ├── admin_service.py
 │   ├── seller_service.py
 │   ├── inventory_service.py
 │   ├── sale_service.py
 │   └── return_service.py
 │
-├── repositories/        # DynamoDB access — only layer that calls boto3
+├── repositories/        # DynamoDB access — implements repository ABCs; only layer calling boto3
 │   ├── bookstore_repository.py
 │   ├── group_leader_repository.py
 │   ├── seller_repository.py
@@ -113,11 +120,22 @@ backend/app/
 │   ├── sale_repository.py
 │   └── return_repository.py
 │
+├── exceptions/          # Domain exception classes raised across layer boundaries
+│   ├── not_found.py         # BookNotFoundError, SellerNotFoundError, etc.
+│   ├── conflict.py          # DuplicateEmailError, ActiveSellersExistError, etc.
+│   └── business_rule.py     # InsufficientStockError, SellerPendingReturnError, etc.
+│
 └── utils/
     ├── id_generator.py      # uuid4() as string
     ├── timestamp.py         # utcnow().isoformat() + "Z"
     └── logger.py            # Structured JSON logger factory
 ```
+
+**Layer isolation enforced by ABCs:**
+- Routers import and depend on `AbstractXxxService` from `interfaces/`.
+- Services import and depend on `AbstractXxxRepository` from `interfaces/`.
+- Concrete classes are injected at runtime via FastAPI `Depends()` — never imported directly by the calling layer.
+- This means every layer can be tested in isolation using a mock of the adjacent ABC.
 
 ---
 
