@@ -26,7 +26,7 @@ src/
 # Install dependencies
 npm install
 
-# Start dev server (proxies /api to http://localhost:8000)
+# Start dev server (proxies /api to http://localhost:8080)
 npm run dev
 ```
 

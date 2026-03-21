@@ -44,10 +44,10 @@ $env:AWS_SECRET_ACCESS_KEY = "test"
 $env:PYTHONPATH = $null
 
 # Run locally
-.venv\Scripts\python.exe -m uvicorn bookrover.main:app --reload --port 8000
+.venv\Scripts\python.exe -m uvicorn bookrover.main:app --reload --port 8080
 ```
 
-OpenAPI docs: http://localhost:8000/docs
+OpenAPI docs: http://localhost:8080/docs
 
 ## Running Tests
 

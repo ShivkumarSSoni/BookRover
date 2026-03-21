@@ -90,11 +90,11 @@ $env:DYNAMODB_ENDPOINT_URL = "http://localhost:8001"
 $env:PYTHONPATH = $null  # required on Windows if a global Python is also installed
 
 # Start the backend
-.venv\Scripts\python.exe -m uvicorn bookrover.main:app --reload --port 8000
+.venv\Scripts\python.exe -m uvicorn bookrover.main:app --reload --port 8080
 ```
 
-Backend runs at: http://localhost:8000  
-OpenAPI docs: http://localhost:8000/docs
+Backend runs at: http://localhost:8080  
+OpenAPI docs: http://localhost:8080/docs
 
 ### Terminal 3 — Frontend (React)
 
@@ -109,7 +109,7 @@ npm run dev
 ```
 
 Frontend runs at: http://localhost:5173  
-All `/api/*` requests are proxied to `http://localhost:8000` automatically.
+All `/api/*` requests are proxied to `http://localhost:8080` automatically.
 
 ### Access the Admin Feature
 
