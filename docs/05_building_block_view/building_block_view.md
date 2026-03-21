@@ -57,7 +57,7 @@ frontend/src/
 │   ├── SummaryCard      # Generic metric card (books/money)
 │   ├── SellerTable      # Group leader dashboard table
 │   ├── ConfirmDialog    # Confirmation modal
-│   └── NavBar           # Bottom navigation bar
+│   └── NavBar           # Top navigation bar (shows seller name on seller pages)
 │
 ├── hooks/               # Data fetching and state logic
 │   ├── useInventory     # Fetch + mutate seller inventory

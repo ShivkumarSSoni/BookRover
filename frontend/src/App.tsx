@@ -5,10 +5,14 @@
  * - /admin → AdminPage (Admin feature)
  * - /register → RegisterPage (Seller Registration)
  * - /inventory → InventoryPage (Seller Inventory)
- * - * redirect to /admin for dev convenience
+ * - * → redirect to /register (new users start here)
+ *
+ * Seller routes are wrapped in SellerProvider so all seller pages
+ * share one fetched seller profile without repeated API calls.
  */
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { SellerProvider } from './context/SellerContext';
 import AdminPage from './pages/AdminPage';
 import RegisterPage from './pages/RegisterPage';
 import InventoryPage from './pages/InventoryPage';
@@ -17,11 +21,24 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Admin — no SellerContext needed */}
         <Route path="/admin" element={<AdminPage />} />
+
+        {/* Registration — no SellerContext yet (seller doesn't exist) */}
         <Route path="/register" element={<RegisterPage />} />
-        <Route path="/inventory" element={<InventoryPage />} />
-        {/* Redirect root to /admin during dev (will be replaced with /login in Phase 6) */}
-        <Route path="*" element={<Navigate to="/admin" replace />} />
+
+        {/* Seller pages — all share one SellerProvider */}
+        <Route
+          path="/inventory"
+          element={
+            <SellerProvider>
+              <InventoryPage />
+            </SellerProvider>
+          }
+        />
+
+        {/* Redirect root and unknown paths to /register */}
+        <Route path="*" element={<Navigate to="/register" replace />} />
       </Routes>
     </BrowserRouter>
   );

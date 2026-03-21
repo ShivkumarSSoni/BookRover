@@ -80,6 +80,13 @@ Seller enters their details and links themselves to a group leader + bookstore.
 ### Purpose
 Seller manages their personal book inventory — add, edit, remove books.
 
+### Layout — Page Header
+Below the top nav bar, display:
+```
+Welcome, {first_name}!
+```
+Small, friendly greeting using the seller's first name from localStorage / seller profile.
+
 ### Layout — Inventory Summary Bar (top, sticky)
 | Label | Value |
 |-------|-------|
@@ -128,6 +135,13 @@ If no books: "Your inventory is empty. Add your first book using the button abov
 
 ### Purpose
 Seller records a sale at a buyer's door. Fast, tap-friendly, no typing for book selection.
+
+### Layout — Page Header
+Below the top nav bar, display:
+```
+Selling as: {first_name} {last_name}
+```
+Reminds the seller whose account is active during a sale.
 
 ### Layout — Section 1: Book Selection
 
@@ -350,23 +364,26 @@ CRUD management for Group Leaders and BookStores.
 
 ---
 
-## Navigation Bar (mobile bottom nav)
+## Navigation Bar (top nav)
 
-Shown on all pages except Login and Registration.
+Shown on all pages except Login and Registration. Fixed at the top of the screen, full-width. On seller pages, displays the seller's full name on the left followed by the nav links on the right.
 
 ### Seller Nav
 ```
-[ Inventory ]  [ New Buyer ]  [ Return ]
+[ BookRover ]  Anand Raj          [ Inventory ]  [ New Buyer ]  [ Return ]
 ```
+- Seller's full name (`first_name + last_name`) is displayed prominently in the top bar.
+- Name is fetched from `GET /sellers/{seller_id}` on first load and cached in state.
+- Each nav link highlights (active style) when its route is current.
 
 ### Group Leader Nav
 ```
-[ Dashboard ]
+[ BookRover ]                               [ Dashboard ]
 ```
 
 ### Admin Nav
 ```
-[ Admin ]
+[ BookRover ]                                  [ Admin ]
 ```
 
 ---

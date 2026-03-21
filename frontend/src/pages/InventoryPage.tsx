@@ -15,6 +15,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BookRover } from '../types';
 import { useInventory } from '../hooks/useInventory';
+import NavBar from '../components/NavBar';
+import { useSeller } from '../context/SellerContext';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -291,6 +293,7 @@ export default function InventoryPage() {
 
   const { inventory, isLoading, error, clearError, addNewBook, editBook, deleteBook } =
     useInventory(sellerId);
+  const { seller } = useSeller();
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingBook, setEditingBook] = useState<BookRover.Book | null>(null);
@@ -328,6 +331,10 @@ export default function InventoryPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <NavBar role="seller" />
+      {/* Spacer for fixed nav height */}
+      <div className="pt-14" />
+
       {/* Sticky summary bar */}
       <div className="sticky top-0 z-10 bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between gap-4">
@@ -355,7 +362,14 @@ export default function InventoryPage() {
       <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
         {/* Header row */}
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold text-gray-900">My Inventory</h1>
+          <div>
+            {seller && (
+              <p className="text-sm text-gray-500 mb-0.5">
+                Welcome, <strong>{seller.first_name}</strong>!
+              </p>
+            )}
+            <h1 className="text-xl font-bold text-gray-900">My Inventory</h1>
+          </div>
           {!showAddForm && !editingBook && (
             <button
               onClick={() => setShowAddForm(true)}

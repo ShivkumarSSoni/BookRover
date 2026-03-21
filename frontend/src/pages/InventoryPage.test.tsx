@@ -1,7 +1,7 @@
 /**
  * Tests for InventoryPage — Seller Inventory UI behaviours.
  *
- * Mocks useInventory hook and react-router-dom navigation.
+ * Mocks useInventory hook, SellerContext, NavBar, and react-router-dom navigation.
  * Covers: summary bar, book cards, redirect if no sellerId,
  * add form toggle, edit form pre-fill, remove disabled when partially sold,
  * remove confirmation dialog.
@@ -25,6 +25,29 @@ vi.mock('react-router-dom', async (importOriginal) => {
     useNavigate: () => mockNavigate,
   };
 });
+
+// Mock NavBar so tests don't need SellerContext's full provider tree
+vi.mock('../components/NavBar', () => ({
+  default: () => <nav data-testid="navbar" />,
+}));
+
+// Mock SellerContext — expose seller name for greeting tests
+vi.mock('../context/SellerContext', () => ({
+  useSeller: () => ({
+    seller: {
+      seller_id: 'seller-123',
+      first_name: 'Anand',
+      last_name: 'Raj',
+      email: 'anand@example.com',
+      group_leader_id: 'gl-1',
+      bookstore_id: 'bs-1',
+      status: 'active',
+      created_at: '2024-01-01T00:00:00Z',
+      updated_at: '2024-01-01T00:00:00Z',
+    },
+    isLoading: false,
+  }),
+}));
 
 const mockAddNewBook = vi.fn();
 const mockEditBook = vi.fn();
@@ -119,6 +142,21 @@ describe('InventoryPage', () => {
     mockUseInventory.mockReturnValue({ ...DEFAULT_INVENTORY_STATE, isLoading: true });
     renderPage();
     expect(mockNavigate).toHaveBeenCalledWith('/register', { replace: true });
+  });
+
+  // ── Nav bar ────────────────────────────────────────────────────────────────
+
+  it('renders the NavBar', () => {
+    renderPage();
+    expect(screen.getByTestId('navbar')).toBeInTheDocument();
+  });
+
+  // ── Seller greeting ────────────────────────────────────────────────────────
+
+  it('shows the seller welcome greeting with their first name', () => {
+    renderPage();
+    expect(screen.getByText(/Welcome,/i)).toBeInTheDocument();
+    expect(screen.getByText('Anand')).toBeInTheDocument();
   });
 
   // ── Summary bar ────────────────────────────────────────────────────────────
