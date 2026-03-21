@@ -55,7 +55,7 @@ def _create_local_tables(settings: Settings) -> None:
                 {
                     "IndexName": "group-leader-id-index",
                     "KeySchema": [{"AttributeName": "group_leader_id", "KeyType": "HASH"}],
-                    "Projection": {"ProjectionType": "COUNT"},
+                    "Projection": {"ProjectionType": "ALL"},
                 }
             ],
         },
@@ -96,8 +96,10 @@ def create_app() -> FastAPI:
     )
 
     # Routers are registered here as features are built:
-    from bookrover.routers import admin
+    from bookrover.routers import admin, lookup, sellers
     app.include_router(admin.router)
+    app.include_router(sellers.router)
+    app.include_router(lookup.router)
 
     return app
 
