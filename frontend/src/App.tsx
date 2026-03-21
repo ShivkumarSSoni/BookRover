@@ -6,18 +6,24 @@
  * - /register → RegisterPage (Seller Registration)
  * - /inventory → InventoryPage (Seller Inventory)
  * - /new-buyer → NewBuyerPage (Record a Sale)
+ * - /dashboard → DashboardPage (Group Leader Dashboard)
  * - * → redirect to /register (new users start here)
  *
  * Seller routes are wrapped in SellerProvider so all seller pages
  * share one fetched seller profile without repeated API calls.
+ *
+ * The /dashboard route is wrapped in GroupLeaderProvider (reads GL identity
+ * from localStorage) and SellerProvider (NavBar internally calls useSeller()).
  */
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { SellerProvider } from './context/SellerContext';
+import { GroupLeaderProvider } from './context/GroupLeaderContext';
 import AdminPage from './pages/AdminPage';
 import RegisterPage from './pages/RegisterPage';
 import InventoryPage from './pages/InventoryPage';
 import NewBuyerPage from './pages/NewBuyerPage';
+import DashboardPage from './pages/DashboardPage';
 
 export default function App() {
   return (
@@ -44,6 +50,19 @@ export default function App() {
             <SellerProvider>
               <NewBuyerPage />
             </SellerProvider>
+          }
+        />
+
+        {/* Group Leader Dashboard — GroupLeaderProvider reads GL identity from localStorage.
+            SellerProvider is required because NavBar calls useSeller() internally. */}
+        <Route
+          path="/dashboard"
+          element={
+            <GroupLeaderProvider>
+              <SellerProvider>
+                <DashboardPage />
+              </SellerProvider>
+            </GroupLeaderProvider>
           }
         />
 

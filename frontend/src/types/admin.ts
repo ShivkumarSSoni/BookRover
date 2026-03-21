@@ -174,4 +174,38 @@ export namespace BookRover {
     sale_date: string;
     created_at: string;
   }
+
+  // ── Dashboard types ───────────────────────────────────────────────────────
+
+  export interface DashboardGroupLeader {
+    group_leader_id: string;
+    name: string;
+  }
+
+  export interface DashboardBookstore {
+    bookstore_id: string;
+    store_name: string;
+  }
+
+  export interface DashboardSellerRow {
+    seller_id: string;
+    full_name: string;
+    total_books_sold: number;
+    total_amount_collected: number;
+  }
+
+  export interface DashboardTotals {
+    total_books_sold: number;
+    total_amount_collected: number;
+  }
+
+  export interface DashboardResponse {
+    group_leader: DashboardGroupLeader;
+    bookstore: DashboardBookstore;
+    sellers: DashboardSellerRow[];
+    totals: DashboardTotals;
+  }
+
+  export type DashboardSortBy = 'total_books_sold' | 'total_amount_collected';
+  export type DashboardSortOrder = 'asc' | 'desc';
 }

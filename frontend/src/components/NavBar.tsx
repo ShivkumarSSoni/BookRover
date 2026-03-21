@@ -7,8 +7,9 @@
  * - Role-appropriate nav links on the right, with active-link highlighting.
  *
  * Role is determined by the `role` prop passed from App.tsx routing:
- *   "seller"  → Inventory | New Buyer | Return
- *   "admin"   → Admin
+ *   "seller"       → Inventory | New Buyer | Return
+ *   "admin"        → Admin
+ *   "group-leader" → Dashboard
  *
  * Active link is detected via React Router's useLocation().
  */
@@ -18,7 +19,7 @@ import { useSeller } from '../context/SellerContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type NavBarRole = 'seller' | 'admin';
+export type NavBarRole = 'seller' | 'admin' | 'group-leader';
 
 interface NavBarProps {
   role: NavBarRole;
@@ -34,11 +35,18 @@ const SELLER_LINKS = [
 
 const ADMIN_LINKS = [{ label: 'Admin', to: '/admin' }];
 
+const GROUP_LEADER_LINKS = [{ label: 'Dashboard', to: '/dashboard' }];
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function NavBar({ role }: NavBarProps) {
   const { seller } = useSeller();
-  const links = role === 'seller' ? SELLER_LINKS : ADMIN_LINKS;
+
+  let links;
+  if (role === 'seller') links = SELLER_LINKS;
+  else if (role === 'group-leader') links = GROUP_LEADER_LINKS;
+  else links = ADMIN_LINKS;
+
   const sellerName =
     role === 'seller' && seller
       ? `${seller.first_name} ${seller.last_name}`

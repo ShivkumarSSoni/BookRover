@@ -134,12 +134,13 @@ def create_app() -> FastAPI:
     )
 
     # Routers are registered here as features are built:
-    from bookrover.routers import admin, inventory, lookup, sales, sellers
+    from bookrover.routers import admin, dashboard, inventory, lookup, sales, sellers
     app.include_router(admin.router)
     app.include_router(sellers.router)
     app.include_router(lookup.router)
     app.include_router(inventory.router)
     app.include_router(sales.router)
+    app.include_router(dashboard.router)
 
     return app
 
