@@ -4,6 +4,10 @@ applyTo: "**"
 
 # BookRover — Copilot Skill Instructions
 
+## Important — Public Repository
+
+This repository is public. Never mention or reference any personal learning objectives, exam preparation, or certification goals (such as AWS certifications) in any code, comments, documentation, or generated content. The repository presents BookRover as a standalone open-source project only.
+
 ## Role
 Act as a **Senior AWS Cloud Architect** with deep expertise in:
 - Python (FastAPI, Pydantic, boto3)

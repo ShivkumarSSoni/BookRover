@@ -16,7 +16,7 @@ BookRover/
 │   ├── data-models.md                  # All entities, DynamoDB table design
 │   ├── api-spec.md                     # All FastAPI endpoints (request/response)
 │   ├── pages-spec.md                   # Per-page UI specification
-│   └── aws-architecture.md             # AWS services, setup order, cost, SAA-C03 map
+│   └── aws-architecture.md             # AWS services, setup order, cost estimate
 ├── frontend/                           # React (TypeScript) + Tailwind CSS
 ├── backend/                            # FastAPI (Python) + Lambda + DynamoDB
 ├── infra/                              # Terraform IaC (Phase 7)

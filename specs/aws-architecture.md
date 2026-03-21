@@ -63,8 +63,6 @@ Supporting Services:
 - Versioning: enabled (easy rollback on bad frontend deploy).
 - Lifecycle policy: delete old versions after 30 days (cost control).
 
-**SAA-C03 Topics Covered**: S3 bucket policies, OAC, static website hosting, versioning, lifecycle policies.
-
 **Cost**: ~$0.023/GB/month storage. At <10MB React build = effectively $0.
 
 ---
@@ -83,8 +81,6 @@ Supporting Services:
 - Default root object: `index.html`.
 - Custom error pages: 403 → `/index.html` (200), 404 → `/index.html` (200) — required for React Router.
 
-**SAA-C03 Topics Covered**: CloudFront origins, cache behaviors, OAC, HTTPS, custom domains, price classes, error pages.
-
 **Cost**: ~$0.0085/10K HTTPS requests. Extremely low for small usage.
 
 ---
@@ -100,8 +96,6 @@ Supporting Services:
 - **CORS**: configured at API Gateway to allow the CloudFront domain.
 - Throttling: default 10,000 requests/second (sufficient for friend-group scale).
 - No API keys required (auth is handled by Cognito in Phase 6).
-
-**SAA-C03 Topics Covered**: API Gateway HTTP API vs REST API trade-offs, Lambda proxy integration, CORS, throttling.
 
 **Cost**: $1.00/million API calls. At small usage = effectively $0.
 
@@ -126,8 +120,6 @@ Supporting Services:
 
 **Cold starts**: FastAPI + Mangum typically cold-starts in < 1 second. Acceptable for this use case.
 
-**SAA-C03 Topics Covered**: Lambda runtime, memory/timeout configuration, execution roles, environment variables, deployment packages, cold starts.
-
 **Cost**: First 1 million requests/month **FREE** (always free tier). After that, $0.20/million. = $0 for friend-group usage.
 
 ---
@@ -143,8 +135,6 @@ Supporting Services:
 - Region: `ap-south-1` (Mumbai).
 - Point-in-time recovery (PITR): enabled on prod tables (protects against accidental data loss).
 - Encryption: AWS-managed keys (SSE enabled by default).
-
-**SAA-C03 Topics Covered**: DynamoDB on-demand vs provisioned, GSIs, PITR, encryption at rest, partition key design.
 
 **Cost**: First 25 GB storage + 25 WCU + 25 RCU **FREE forever** (always free tier). On-demand at small scale = $0.
 
@@ -162,8 +152,6 @@ Supporting Services:
 - User groups: `admin`, `group-leader`, `seller` — mapped to app roles
 - API Gateway: configured with Cognito authorizer — validates JWT on every request
 
-**SAA-C03 Topics Covered**: Cognito User Pools, Identity Providers, OAuth 2.0 federation, JWT, API Gateway authorizers.
-
 **Cost**: First 50,000 MAU **FREE**. = $0 for this app.
 
 ---
@@ -179,8 +167,6 @@ Supporting Services:
 - **Alarms**: 
   - Lambda error rate > 1% → alert (via email via SNS).
   - Lambda duration > 5 seconds → alert.
-
-**SAA-C03 Topics Covered**: CloudWatch Logs, Log Groups, retention policies, alarms, SNS notifications.
 
 **Cost**: First 5 GB logs/month **FREE**. Alarms: $0.10/alarm/month. = ~$0.20/month.
 
@@ -199,8 +185,6 @@ Supporting Services:
 `bookrover-cloudfront-s3-oac`:
 - S3 `GetObject` on the frontend bucket only.
 
-**SAA-C03 Topics Covered**: IAM roles, policies, least privilege principle, resource-based policies, trust relationships.
-
 **Cost**: IAM is free.
 
 ---
@@ -214,8 +198,6 @@ Supporting Services:
 - Domain: `bookreover.yourdomain.com` and `api.bookreover.yourdomain.com`.
 - Validation: DNS validation via Route 53 (automatic).
 
-**SAA-C03 Topics Covered**: ACM, certificate regions, DNS validation, HTTPS.
-
 **Cost**: ACM certificates are **FREE**.
 
 ---
@@ -227,8 +209,6 @@ Supporting Services:
 **Configuration**:
 - Hosted zone for your domain.
 - A record (alias): `bookreover.yourdomain.com` → CloudFront distribution.
-
-**SAA-C03 Topics Covered**: Route 53 hosted zones, alias records, routing policies.
 
 **Cost**: $0.50/hosted zone/month. $0.40/million DNS queries. = ~$0.50/month.
 
@@ -284,20 +264,6 @@ Detailed Console steps for each will be documented in `/docs/aws-setup-guide.md`
 
 ---
 
-## SAA-C03 Exam Topic Mapping
-
-| Exam Domain | BookRover Service | Concept Applied |
-|-------------|------------------|-----------------|
-| Design Resilient Architectures | DynamoDB on-demand, Lambda | Auto-scaling, no single point of failure |
-| Design High-Performing Architectures | CloudFront CDN, API Gateway HTTP API | Low latency, edge caching |
-| Design Secure Applications | IAM least privilege, OAC, HTTPS, Cognito | Identity, access control, encryption in transit |
-| Design Cost-Optimized Architectures | Serverless (Lambda, DynamoDB on-demand, S3) | Pay-per-use, no idle cost |
-| Networking | CloudFront behaviors, API Gateway, Route 53 | Content delivery, DNS, HTTPS |
-| Storage | S3 (static hosting), DynamoDB (NoSQL) | Object storage, serverless database |
-| Compute | Lambda (serverless functions) | Event-driven compute |
-| Monitoring | CloudWatch Logs, Alarms, Metrics | Observability, operational excellence |
-
----
 
 ## Future: Terraform IaC
 

@@ -6,7 +6,7 @@
 |------------|--------|
 | **Backend must be Python** | Developer's chosen language; AWS Lambda has excellent Python support |
 | **Frontend must be React** | Modern, mobile-friendly, component-based UI |
-| **Hosted exclusively on AWS** | Developer's SAA-C03 learning objective |
+| **Hosted exclusively on AWS** | AWS serverless best practice; cost-minimal, no infrastructure to manage |
 | **AWS-native, serverless-first** | Minimum cost — no EC2, no containers, no idle server charges |
 | **No SQL database** | DynamoDB chosen for serverless, cost-minimal NoSQL — no RDS provisioned capacity costs |
 | **Mobile browser only** | End users (sellers) access app from phone browsers — no native app |

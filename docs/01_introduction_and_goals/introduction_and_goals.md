@@ -34,10 +34,4 @@ Listed in priority order:
 | **Group Leader** | Oversees sellers; receives books from bookstore | Dashboard showing all sellers' performance; sortable by books sold and money collected |
 | **Seller** | Collects books, sells door-to-door, returns unsold books + money | Fast, tap-friendly sale recording; clear inventory view; simple return summary |
 | **Bookstore Owner** | Provides books on consignment; receives returns | Not a direct app user — is represented as data (bookstore entity) |
-| **Developer (you)** | Builds and maintains the app | Clean codebase, AWS learning opportunity, SAA-C03 exam preparation |
-
----
-
-## 1.4 Secondary Objective
-
-The developer is preparing for the **AWS Solutions Architect Associate (SAA-C03)** certification. Building BookRover on AWS using real services (Lambda, DynamoDB, API Gateway, CloudFront, S3, Cognito, IAM, CloudWatch) directly applies and validates SAA-C03 knowledge in a practical context.
+| **Developer (you)** | Builds and maintains the app | Clean codebase, well-tested, maintainable, and extensible |

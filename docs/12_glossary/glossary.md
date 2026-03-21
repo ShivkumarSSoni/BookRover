@@ -36,7 +36,6 @@ Terms used throughout the BookRover project documentation and codebase.
 | **Return** | The act of a seller physically returning unsold books and collected money to the bookstore at the end of a selling round. |
 | **Return Summary** | The page showing a seller how many unsold books they have, their cost value, and the total money collected from sales — all to be returned to the bookstore. |
 | **S3** | AWS Simple Storage Service. Hosts the compiled React frontend as static files. |
-| **SAA-C03** | AWS Solutions Architect Associate exam (version C03). Building BookRover on AWS serves as a practical study aid for this certification. |
 | **Seller** | A user who collects books from the bookstore (via their group leader), sells them door-to-door, and returns unsold books + money. Each seller manages their own independent inventory. |
 | **SaleItem** | A single line in a sale — one book title + quantity sold + price. Stored as a nested list within the Sale document. Values are snapshotted at the time of sale. |
 | **Snapshot** | In SaleItem and ReturnItem, key values (book name, language, price) are copied at the time of the transaction so that historical records remain accurate even if book details change later. |

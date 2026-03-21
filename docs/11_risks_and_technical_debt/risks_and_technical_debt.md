@@ -19,7 +19,7 @@
 | ID | Debt | Reason Accepted | Resolution Plan |
 |----|------|----------------|-----------------|
 | TD-1 | **No authentication (Phase 1–5)** | Scope control — auth adds significant complexity; core features must work first | Phase 6: Gmail OAuth via Cognito |
-| TD-2 | **No Terraform IaC (Phase 1–6)** | Manual Console setup for SAA-C03 learning objective | Phase 7: Terraform modules to codify all resources |
+| TD-2 | **No Terraform IaC (Phase 1–6)** | Manual Console setup first to understand resources before codifying them | Phase 7: Terraform modules to codify all resources |
 | TD-3 | **moto_server instead of DynamoDB Local** | Docker Desktop not yet permitted on developer's laptop | Replace with DynamoDB Local Docker once permissions obtained |
 | TD-4 | **No CI/CD pipeline** | Keeping setup simple in early phases | Future: GitHub Actions for lint, test, deploy on PR merge |
 | TD-5 | **No API versioning** | Single-client app; no versioning needed now | Add `/v1/` prefix if breaking changes become necessary |
