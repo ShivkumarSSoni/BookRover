@@ -1,0 +1,92 @@
+@startuml
+!theme plain
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 13
+skinparam ArrowColor #444444
+skinparam shadowing false
+skinparam NodeBorderColor #444444
+skinparam NodeBackgroundColor #f9f9f9
+skinparam ArtifactBorderColor #444444
+skinparam ArtifactBackgroundColor #f0f0f0
+skinparam DatabaseBorderColor #444444
+skinparam DatabaseBackgroundColor #e8fde8
+skinparam CloudBorderColor #888888
+skinparam CloudBackgroundColor #f5f5f5
+
+title BookRover — Physical View: AWS Deployment (ap-south-1)
+
+' ─── User ─────────────────────────────────────────────
+actor "User\n(Phone Browser)" as User
+
+' ─── Global edge ──────────────────────────────────────
+cloud "AWS Global Edge (us-east-1)" {
+  node "Amazon CloudFront\n(CDN + HTTPS termination)" as CF {
+    artifact "Cache: static assets" as CFCache
+    artifact "Route /api/* → API GW" as CFRoute
+  }
+  node "AWS ACM\n(SSL Certificate\nus-east-1)" as ACM
+}
+
+' ─── ap-south-1 region ────────────────────────────────
+cloud "AWS ap-south-1 (Mumbai)" {
+
+  node "Amazon S3\nbookrover-frontend-prod\n(Block public access — OAC only)" as S3 {
+    artifact "React SPA\n(index.html + JS/CSS bundles)" as ReactBuild
+  }
+
+  node "Amazon API Gateway\n(HTTP API)" as APIGW {
+    artifact "CORS config\nThrottling" as APIConfig
+  }
+
+  node "AWS Lambda\nbookrover-api-prod\nPython 3.12 | 256 MB | 30s" as Lambda {
+    artifact "FastAPI + Mangum\n(bookrover package)" as FastAPI
+  }
+
+  database "Amazon DynamoDB\n(On-demand billing)" as DynamoDB {
+    artifact "bookrover-admins-prod" as T1
+    artifact "bookrover-bookstores-prod" as T2
+    artifact "bookrover-group-leaders-prod" as T3
+    artifact "bookrover-sellers-prod" as T4
+    artifact "bookrover-inventory-prod" as T5
+    artifact "bookrover-sales-prod" as T6
+    artifact "bookrover-returns-prod" as T7
+  }
+
+  node "Amazon CloudWatch\n(Logs + Metrics)" as CW {
+    artifact "/aws/lambda/bookrover-api-prod" as LogGroup
+  }
+
+  node "AWS IAM\nbookrover-lambda-execution-role" as IAM {
+    artifact "DynamoDB CRUD\non bookrover-* tables only" as IAMPolicy
+  }
+
+}
+
+' ─── Traffic flow ─────────────────────────────────────
+User --> CF : HTTPS
+
+CF --> S3 : Static assets\n(OAC — private bucket)
+CF --> APIGW : /api/* requests
+
+APIGW --> Lambda : Lambda proxy\ninvocation
+
+Lambda --> DynamoDB : boto3 read/write
+Lambda --> CW : Structured JSON logs
+
+Lambda --> IAM : Assumes role\n(least privilege)
+
+ACM --> CF : TLS certificate\n(CloudFront requirement:\nmust be us-east-1)
+
+note right of S3
+  CloudFront uses Origin Access Control (OAC).
+  S3 bucket is NOT publicly accessible.
+  All requests go through CloudFront only.
+end note
+
+note right of DynamoDB
+  7 tables — multi-table design.
+  All GSIs defined per data-models spec.
+  Point-in-time recovery enabled (prod).
+end note
+
+@enduml

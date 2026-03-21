@@ -1,0 +1,155 @@
+@startuml
+!theme plain
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 12
+skinparam ArrowColor #444444
+skinparam shadowing false
+skinparam ClassBorderColor #444444
+skinparam ClassBackgroundColor #f9f9f9
+skinparam ClassHeaderBackgroundColor #ddeeff
+
+title BookRover — Logical View: Domain Class Diagram
+
+' ─── Admin ────────────────────────────────────────────
+class Admin {
+  + admin_id : String <<PK>>
+  + email : String
+  + created_at : String
+}
+
+' ─── BookStore ────────────────────────────────────────
+class BookStore {
+  + bookstore_id : String <<PK>>
+  + store_name : String
+  + owner_name : String
+  + address : String
+  + phone_number : String
+  + created_at : String
+  + updated_at : String
+}
+
+' ─── GroupLeader ──────────────────────────────────────
+class GroupLeader {
+  + group_leader_id : String <<PK>>
+  + name : String
+  + email : String
+  + bookstore_ids : List[String]
+  + created_at : String
+  + updated_at : String
+}
+
+' ─── Seller ───────────────────────────────────────────
+class Seller {
+  + seller_id : String <<PK>>
+  + first_name : String
+  + last_name : String
+  + email : String
+  + group_leader_id : String <<FK>>
+  + bookstore_id : String <<FK>>
+  + status : SellerStatus
+  + created_at : String
+  + updated_at : String
+}
+
+enum SellerStatus {
+  active
+  pending_return
+}
+
+' ─── InventoryItem ────────────────────────────────────
+class InventoryItem {
+  + book_id : String <<PK>>
+  + seller_id : String <<FK>>
+  + bookstore_id : String <<FK>>
+  + book_name : String
+  + language : String
+  + initial_count : Integer
+  + current_count : Integer
+  + cost_per_book : Decimal
+  + selling_price : Decimal
+  + created_at : String
+  + updated_at : String
+  --
+  {derived} current_books_cost_balance()
+  {derived} total_books_cost_balance()
+}
+
+' ─── Sale ─────────────────────────────────────────────
+class Sale {
+  + sale_id : String <<PK>>
+  + seller_id : String <<FK>>
+  + bookstore_id : String <<FK>>
+  + buyer_first_name : String
+  + buyer_last_name : String
+  + buyer_country_code : String
+  + buyer_phone : String
+  + total_books_sold : Integer
+  + total_amount_collected : Decimal
+  + sale_date : String
+  + created_at : String
+}
+
+' ─── SaleItem (embedded) ──────────────────────────────
+class SaleItem {
+  + book_id : String <<ref>>
+  + book_name : String <<snapshot>>
+  + language : String <<snapshot>>
+  + quantity_sold : Integer
+  + selling_price : Decimal <<snapshot>>
+  + subtotal : Decimal
+}
+
+' ─── Return ───────────────────────────────────────────
+class Return {
+  + return_id : String <<PK>>
+  + seller_id : String <<FK>>
+  + bookstore_id : String <<FK>>
+  + total_books_returned : Integer
+  + total_money_returned : Decimal
+  + status : ReturnStatus
+  + return_date : String
+  + created_at : String
+}
+
+enum ReturnStatus {
+  pending
+  completed
+}
+
+' ─── ReturnItem (embedded) ────────────────────────────
+class ReturnItem {
+  + book_id : String <<ref>>
+  + book_name : String <<snapshot>>
+  + language : String <<snapshot>>
+  + quantity_returned : Integer
+  + cost_per_book : Decimal <<snapshot>>
+  + total_cost : Decimal
+}
+
+' ─── Relationships ────────────────────────────────────
+Admin "1" -- "0..*" GroupLeader : manages
+Admin "1" -- "0..*" BookStore : manages
+
+GroupLeader "1" -- "1..*" BookStore : linked to
+GroupLeader "1" -- "0..*" Seller : oversees
+
+Seller "1" -- "0..*" InventoryItem : owns
+Seller "1" -- "0..*" Sale : creates
+Seller "1" -- "0..*" Return : submits
+Seller ..> SellerStatus : status
+
+Sale "1" *-- "1..*" SaleItem : contains
+Return "1" *-- "0..*" ReturnItem : contains
+
+InventoryItem "1" ..> SaleItem : referenced by\n(snapshot at sale time)
+InventoryItem "1" ..> ReturnItem : referenced by\n(snapshot at return time)
+Return ..> ReturnStatus : status
+
+note top of SaleItem
+  book_name, language, selling_price are
+  snapshotted at sale time.
+  Historical accuracy is preserved even
+  if the book's details change later.
+end note
+
+@enduml

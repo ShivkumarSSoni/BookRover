@@ -1,5 +1,21 @@
 # arc42 — Section 5: Building Block View
 
+## 5.0 Architecture Diagrams
+
+### Logical View — Domain Class Diagram
+
+> Source: [diagrams/logical_domain_classes.puml](diagrams/logical_domain_classes.puml)
+
+![Domain Class Diagram](./diagrams/logical_domain_classes.png)
+
+### Development View — Backend Layer Architecture
+
+> Source: [diagrams/development_layers.puml](diagrams/development_layers.puml)
+
+![Development Layer Diagram](./diagrams/development_layers.png)
+
+---
+
 ## 5.1 Level 1 — System Overview
 
 ```
@@ -72,7 +88,7 @@ frontend/src/
 ## 5.3 Level 2 — Backend Breakdown
 
 ```
-backend/app/
+backend/bookrover/
 ├── main.py              # App factory — creates FastAPI instance,
 │                        # registers routers, configures middleware (CORS, logging)
 │

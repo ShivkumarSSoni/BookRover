@@ -26,6 +26,15 @@ Listed in priority order:
 
 ---
 
+## 1.2a Use Case Diagram (+1 Scenarios View)
+
+> Source: [diagrams/scenarios_use_cases.puml](diagrams/scenarios_use_cases.puml)
+> Rendered PNG committed alongside the source file.
+
+![Use Case Diagram](./diagrams/scenarios_use_cases.png)
+
+---
+
 ## 1.3 Stakeholders
 
 | Stakeholder | Role | Key Expectations |

@@ -1,0 +1,47 @@
+@startuml
+!theme plain
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 13
+skinparam ArrowColor #444444
+skinparam shadowing false
+skinparam RectangleBorderColor #444444
+skinparam RectangleBackgroundColor #f9f9f9
+skinparam ActorBorderColor #444444
+skinparam ActorBackgroundColor #f0f0f0
+skinparam DatabaseBorderColor #444444
+skinparam DatabaseBackgroundColor #f0f0f0
+
+title BookRover — Context View: System Context
+
+' ─── Human actors ─────────────────────────────────────
+actor "Admin" as Admin
+actor "Group Leader" as GL
+actor "Seller" as Seller
+
+' ─── System under consideration ───────────────────────
+rectangle "BookRover\n(React SPA + FastAPI + DynamoDB\nHosted on AWS)" as BookRover #e8f4fd
+
+' ─── External systems ─────────────────────────────────
+database "AWS DynamoDB\n(ap-south-1)" as DynamoDB
+rectangle "AWS Cognito +\nGoogle OAuth\n(Phase 6 — deferred)" as Cognito #fff3cd
+rectangle "AWS CloudWatch\n(Logs + Metrics)" as CloudWatch
+rectangle "Bookstore\n(physical entity —\nrepresented as data)" as Bookstore #f0f0f0
+
+' ─── Actor → System ───────────────────────────────────
+Admin --> BookRover : Manages group leaders\nand bookstores (CRUD)
+GL --> BookRover : Views seller\ndashboard
+Seller --> BookRover : Registers, records sales,\nmanages inventory,\nsubmits returns
+
+' ─── System → External systems ────────────────────────
+BookRover --> DynamoDB : Reads and writes\nall app data
+BookRover --> Cognito : User authentication\nand identity (deferred)
+BookRover --> CloudWatch : Structured logs\nand metrics
+BookRover ..> Bookstore : Bookstore details stored\nas reference data
+
+' ─── Note ─────────────────────────────────────────────
+note bottom of Cognito
+  Authentication is deferred to Phase 6.
+  All endpoints are open during development.
+end note
+
+@enduml

@@ -392,6 +392,109 @@ All interfaces, classes, and types in both the backend and frontend must belong 
 
 ---
 
+## Architecture Diagrams — PlantUML
+
+### Tooling
+
+- **Format**: PlantUML (`.puml` files) — chosen for its full 4+1 view coverage and native arc42 compatibility.
+- **VS Code**: use the PlantUML extension for local preview.
+- **GitHub rendering**: PlantUML does not render natively in GitHub markdown. Solve by committing both the `.puml` source and the generated `.png` image alongside it.
+
+### File and Folder Conventions
+
+- Every arc42 section that contains diagrams gets a `diagrams/` subfolder.
+- Source file naming: `<view>_<description>.puml` — e.g., `context_system_context.puml`, `logical_domain_classes.puml`.
+- Generated image naming: same base name, `.png` extension — e.g., `context_system_context.png`.
+- Reference the PNG in the section's `.md` file using a relative path:
+  ```markdown
+  ![System Context](./diagrams/context_system_context.png)
+  ```
+- The `.puml` file is the **source of truth** — always edit the `.puml`, regenerate the `.png`, commit both together.
+
+### Generate + Commit PNG Workflow
+
+1. Edit the `.puml` file in VS Code.
+2. Preview using the PlantUML extension (`Alt+D`).
+3. Export to PNG: right-click in the `.puml` file → "Export Current Diagram" → save as `.png` in the same `diagrams/` folder.
+4. Commit both files together:
+   ```
+   git add docs/<section>/diagrams/<name>.puml docs/<section>/diagrams/<name>.png
+   git commit -m "docs(<section>): add/update <description> diagram"
+   ```
+
+### PlantUML Style Conventions
+
+- Always begin with `!theme plain` for clean, professional output.
+- Always include a `title` directive.
+- Use `skinparam` for consistent font and arrow styling across all diagrams.
+- Group related elements inside `package`, `component`, or `namespace` blocks.
+- Use `note` blocks sparingly — only for non-obvious decisions.
+- Keep diagrams focused: one diagram per concern. Do not try to show everything in one diagram.
+
+### Standard Header (apply to every `.puml` file)
+
+```plantuml
+@startuml
+!theme plain
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 13
+skinparam ArrowColor #444444
+skinparam shadowing false
+title <Diagram Title>
+
+' ... diagram content ...
+
+@enduml
+```
+
+---
+
+## 4+1 View → arc42 Mapping
+
+The 4+1 architectural view model maps onto arc42 sections as follows. Use this as the guide for where to create PlantUML diagrams.
+
+### View Assignments
+
+| 4+1 View | What It Describes | arc42 Section | PlantUML Diagram Types |
+|---|---|---|---|
+| **+1 Scenarios** (Use Case view) | Use cases that drive and validate all other views | `01_introduction_and_goals/` | Use case diagram |
+| **Logical view** | Domain entities, their static relationships, Pydantic models | `05_building_block_view/` Level 1 & 2 | Class diagram, object diagram |
+| **Development view** | Code layers, package structure, module dependencies | `05_building_block_view/` Level 2+ | Component diagram, package diagram |
+| **Process view** | Runtime sequences, interactions, state transitions | `06_runtime_view/` | Sequence diagram, activity diagram, state diagram |
+| **Physical view** | Deployment topology — AWS infrastructure, network | `07_deployment_view/` | Deployment diagram, C4 container diagram |
+| **Context** | System boundary — what is inside vs outside BookRover | `03_context_and_scope/` | Context diagram (C4 Level 1) |
+
+### Sections That Don't Belong to a Single View
+
+These arc42 sections are cross-cutting framing — they inform all 4+1 views but are not a view themselves:
+
+| arc42 Section | Role |
+|---|---|
+| `02_constraints/` | Technical and organisational constraints that bound every view |
+| `03_context_and_scope/` | System boundary — what is inside vs outside (feeds the Context diagram) |
+| `04_solution_strategy/` | Key decisions that shape the architecture across all views |
+| `08_cross_cutting_concepts/` | Layering rules, error handling, logging — applied across all views |
+| `09_architecture_decisions/` | ADRs — the *why* behind decisions visible in all views |
+| `10_quality_requirements/` | Quality scenarios that the +1 Scenarios view must satisfy |
+| `11_risks_and_technical_debt/` | Gaps and risks across all views |
+| `12_glossary/` | Vocabulary used across all views |
+
+### BookRover Diagram Inventory
+
+| 4+1 View | Diagram | File | Section |
+|---|---|---|---|
+| +1 Scenarios | Use case: all actors + primary use cases | `01_introduction_and_goals/diagrams/scenarios_use_cases.puml` | `01_introduction_and_goals/` |
+| Context | System context: BookRover ↔ actors + external systems | `03_context_and_scope/diagrams/context_system_context.puml` | `03_context_and_scope/` |
+| Logical | Domain class diagram: all entities + relationships | `05_building_block_view/diagrams/logical_domain_classes.puml` | `05_building_block_view/` |
+| Development | Component diagram: bookrover package layers | `05_building_block_view/diagrams/development_layers.puml` | `05_building_block_view/` |
+| Physical | Deployment diagram: full AWS infrastructure | `07_deployment_view/diagrams/physical_aws_deployment.puml` | `07_deployment_view/` |
+| Process | Sequence: Create Sale flow | `06_runtime_view/diagrams/process_create_sale.puml` | `06_runtime_view/` |
+| Process | Sequence: Submit Return flow | `06_runtime_view/diagrams/process_submit_return.puml` | `06_runtime_view/` |
+
+> Process diagrams are added separately. All other diagrams must exist before any code is written.
+
+---
+
 ## Environment Separation
 
 - Environments: `dev` and `prod`.

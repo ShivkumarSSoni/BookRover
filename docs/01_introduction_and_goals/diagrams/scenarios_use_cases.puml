@@ -1,0 +1,67 @@
+@startuml
+!theme plain
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 13
+skinparam ArrowColor #444444
+skinparam shadowing false
+skinparam ActorBorderColor #444444
+skinparam UsecaseBorderColor #444444
+skinparam UsecaseBackgroundColor #f9f9f9
+skinparam ActorBackgroundColor #f0f0f0
+
+title BookRover — +1 Scenarios: Use Case View
+
+' ─── Actors ───────────────────────────────────────────
+actor "Admin" as Admin
+actor "Group Leader" as GL
+actor "Seller" as Seller
+
+' ─── System boundary ──────────────────────────────────
+rectangle "BookRover" {
+
+  ' Admin use cases
+  usecase "Manage Bookstores\n(CRUD)" as UC_Bookstores
+  usecase "Manage Group Leaders\n(CRUD)" as UC_GroupLeaders
+
+  ' Seller use cases
+  usecase "Register as Seller\n(pick group leader + bookstore)" as UC_Register
+  usecase "Manage Inventory\n(add / edit / remove books)" as UC_Inventory
+  usecase "Record a Sale\n(select books, enter buyer details)" as UC_Sale
+  usecase "View Return Summary\n(unsold books + money to return)" as UC_ReturnSummary
+  usecase "Submit Return\n(clear inventory, reset status)" as UC_Return
+  usecase "Request Group Leader Switch\n(triggers pending_return status)" as UC_Switch
+
+  ' Group Leader use cases
+  usecase "View Seller Dashboard\n(books sold + money collected)" as UC_Dashboard
+  usecase "Sort / Filter Dashboard\n(by amount or books sold)" as UC_Sort
+
+}
+
+' ─── Admin relationships ──────────────────────────────
+Admin --> UC_Bookstores
+Admin --> UC_GroupLeaders
+
+' ─── Seller relationships ─────────────────────────────
+Seller --> UC_Register
+Seller --> UC_Inventory
+Seller --> UC_Sale
+Seller --> UC_ReturnSummary
+Seller --> UC_Return
+Seller --> UC_Switch
+
+' ─── Group Leader relationships ───────────────────────
+GL --> UC_Dashboard
+UC_Dashboard <.. UC_Sort : <<extends>>
+
+' ─── Notes ───────────────────────────────────────────
+note right of UC_Switch
+  Seller must complete a full return
+  before the switch takes effect.
+end note
+
+note right of UC_Sale
+  Decrements current_count
+  for each book sold (atomic).
+end note
+
+@enduml

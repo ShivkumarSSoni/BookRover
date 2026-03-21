@@ -1,5 +1,13 @@
 # arc42 — Section 7: Deployment View
 
+## 7.0 Deployment Diagram
+
+> Source: [diagrams/physical_aws_deployment.puml](diagrams/physical_aws_deployment.puml)
+
+![AWS Deployment Diagram](./diagrams/physical_aws_deployment.png)
+
+---
+
 ## 7.1 Production Deployment (AWS)
 
 ```

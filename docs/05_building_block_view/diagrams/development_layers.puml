@@ -1,0 +1,138 @@
+@startuml
+!theme plain
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 13
+skinparam ArrowColor #444444
+skinparam shadowing false
+skinparam ComponentBorderColor #444444
+skinparam ComponentBackgroundColor #f9f9f9
+skinparam PackageBorderColor #888888
+skinparam DatabaseBorderColor #444444
+skinparam DatabaseBackgroundColor #f0f0f0
+skinparam InterfaceBorderColor #2266aa
+skinparam InterfaceBackgroundColor #ddeeff
+
+title BookRover — Development View: Backend Layer Architecture
+
+' ─── Inbound ──────────────────────────────────────────
+package "Inbound Adapters" {
+  [Mangum\n(Lambda event → ASGI)] as Mangum
+  [API Gateway\nHTTP Proxy] as APIGW
+  APIGW --> Mangum
+}
+
+' ─── HTTP Layer ───────────────────────────────────────
+package "bookrover.routers  (HTTP Layer)" #e8f4fd {
+  [admin.py] as RAdmin
+  [sellers.py] as RSellers
+  [inventory.py] as RInventory
+  [sales.py] as RSales
+  [returns.py] as RReturns
+  [dashboard.py] as RDashboard
+  [lookups.py] as RLookups
+}
+
+' ─── Interface contracts (ABCs) ───────────────────────
+package "bookrover.interfaces  (ABCs — Layer Contracts)" #fff3cd {
+  interface AbstractAdminService
+  interface AbstractSellerService
+  interface AbstractInventoryService
+  interface AbstractSaleService
+  interface AbstractReturnService
+  interface AbstractAdminRepository
+  interface AbstractSellerRepository
+  interface AbstractInventoryRepository
+  interface AbstractSaleRepository
+  interface AbstractReturnRepository
+}
+
+' ─── Service Layer ────────────────────────────────────
+package "bookrover.services  (Business Logic)" #e8fde8 {
+  [admin_service.py] as SAdmin
+  [seller_service.py] as SSeller
+  [inventory_service.py] as SInventory
+  [sale_service.py] as SSale
+  [return_service.py] as SReturn
+}
+
+' ─── Repository Layer ─────────────────────────────────
+package "bookrover.repositories  (DynamoDB Access)" #fdeaea {
+  [bookstore_repository.py] as RepBookstore
+  [group_leader_repository.py] as RepGL
+  [seller_repository.py] as RepSeller
+  [inventory_repository.py] as RepInventory
+  [sale_repository.py] as RepSale
+  [return_repository.py] as RepReturn
+}
+
+' ─── DynamoDB ─────────────────────────────────────────
+database "AWS DynamoDB\n(7 tables)" as DynamoDB
+
+' ─── Support packages ─────────────────────────────────
+package "bookrover.models\n(Pydantic DTOs)" as Models #f5f5f5
+package "bookrover.exceptions\n(Domain Exceptions)" as Exceptions #f5f5f5
+package "bookrover.utils\n(id, timestamp, logger)" as Utils #f5f5f5
+
+' ─── Flow: inbound → routers ──────────────────────────
+Mangum --> RAdmin
+Mangum --> RSellers
+Mangum --> RInventory
+Mangum --> RSales
+Mangum --> RReturns
+Mangum --> RDashboard
+Mangum --> RLookups
+
+' ─── Routers depend on Service ABCs (not concretions) ─
+RAdmin ..> AbstractAdminService : Depends()
+RSellers ..> AbstractSellerService : Depends()
+RInventory ..> AbstractInventoryService : Depends()
+RSales ..> AbstractSaleService : Depends()
+RReturns ..> AbstractReturnService : Depends()
+RDashboard ..> AbstractAdminService : Depends()
+
+' ─── Concrete services implement Service ABCs ─────────
+SAdmin ..|> AbstractAdminService
+SSeller ..|> AbstractSellerService
+SInventory ..|> AbstractInventoryService
+SSale ..|> AbstractSaleService
+SReturn ..|> AbstractReturnService
+
+' ─── Services depend on Repository ABCs ───────────────
+SAdmin ..> AbstractAdminRepository : injected
+SSeller ..> AbstractSellerRepository : injected
+SInventory ..> AbstractInventoryRepository : injected
+SSale ..> AbstractSaleRepository : injected
+SReturn ..> AbstractReturnRepository : injected
+
+' ─── Concrete repositories implement Repository ABCs ──
+RepBookstore ..|> AbstractAdminRepository
+RepGL ..|> AbstractAdminRepository
+RepSeller ..|> AbstractSellerRepository
+RepInventory ..|> AbstractInventoryRepository
+RepSale ..|> AbstractSaleRepository
+RepReturn ..|> AbstractReturnRepository
+
+' ─── Repositories call DynamoDB (only layer) ──────────
+RepBookstore --> DynamoDB : boto3
+RepGL --> DynamoDB : boto3
+RepSeller --> DynamoDB : boto3
+RepInventory --> DynamoDB : boto3
+RepSale --> DynamoDB : boto3
+RepReturn --> DynamoDB : boto3
+
+' ─── Cross-cutting usage ──────────────────────────────
+Models .. RAdmin
+Models .. SAdmin
+Exceptions .. SAdmin
+Exceptions .. RepSale
+Utils .. SAdmin
+
+note bottom of Exceptions
+  Domain exceptions (BookNotFoundError,
+  DuplicateEmailError, etc.) are the only
+  thing that crosses layer boundaries.
+  boto3 ClientError never propagates
+  above the repository layer.
+end note
+
+@enduml
