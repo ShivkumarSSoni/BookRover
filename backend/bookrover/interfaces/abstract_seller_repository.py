@@ -54,3 +54,18 @@ class AbstractSellerRepository(ABC):
         Returns:
             List of Seller dicts.
         """
+
+    @abstractmethod
+    def update(self, seller_id: str, fields: Dict) -> Dict:
+        """Apply a partial update to an existing Seller.
+
+        Args:
+            seller_id: UUID of the seller to update.
+            fields: Dict of field names → new values (always includes updated_at).
+
+        Returns:
+            The full updated Seller dict.
+
+        Raises:
+            SellerNotFoundError: If no seller exists with the given ID.
+        """

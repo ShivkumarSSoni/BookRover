@@ -4,7 +4,7 @@ These models define the request query parameters and response shapes
 for the GET /group-leaders/{group_leader_id}/dashboard endpoint.
 """
 
-from typing import List, Literal, Optional
+from typing import List, Literal
 
 from pydantic import BaseModel
 

@@ -6,6 +6,7 @@
  * - /register → RegisterPage (Seller Registration)
  * - /inventory → InventoryPage (Seller Inventory)
  * - /new-buyer → NewBuyerPage (Record a Sale)
+ * - /return → ReturnPage (Return Books)
  * - /dashboard → DashboardPage (Group Leader Dashboard)
  * - * → redirect to /register (new users start here)
  *
@@ -23,6 +24,7 @@ import AdminPage from './pages/AdminPage';
 import RegisterPage from './pages/RegisterPage';
 import InventoryPage from './pages/InventoryPage';
 import NewBuyerPage from './pages/NewBuyerPage';
+import ReturnPage from './pages/ReturnPage';
 import DashboardPage from './pages/DashboardPage';
 
 export default function App() {
@@ -49,6 +51,14 @@ export default function App() {
           element={
             <SellerProvider>
               <NewBuyerPage />
+            </SellerProvider>
+          }
+        />
+        <Route
+          path="/return"
+          element={
+            <SellerProvider>
+              <ReturnPage />
             </SellerProvider>
           }
         />

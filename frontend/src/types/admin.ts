@@ -208,4 +208,52 @@ export namespace BookRover {
 
   export type DashboardSortBy = 'total_books_sold' | 'total_amount_collected';
   export type DashboardSortOrder = 'asc' | 'desc';
+
+  // ── Return types ──────────────────────────────────────────────────────────
+
+  export interface ReturnSummaryBookstoreInfo {
+    bookstore_id: string;
+    store_name: string;
+    owner_name: string;
+    address: string;
+    phone_number: string;
+  }
+
+  export interface ReturnSummaryBook {
+    book_id: string;
+    book_name: string;
+    language: string;
+    quantity_to_return: number;
+    cost_per_book: number;
+    total_cost: number;
+  }
+
+  export interface ReturnSummaryResponse {
+    seller_id: string;
+    bookstore: ReturnSummaryBookstoreInfo;
+    books_to_return: ReturnSummaryBook[];
+    total_books_to_return: number;
+    total_cost_of_unsold_books: number;
+    total_money_collected_from_sales: number;
+  }
+
+  export interface ReturnItemResponse {
+    book_id: string;
+    book_name: string;
+    language: string;
+    quantity_returned: number;
+    cost_per_book: number;
+    total_cost: number;
+  }
+
+  export interface ReturnResponse {
+    return_id: string;
+    seller_id: string;
+    bookstore_id: string;
+    return_items: ReturnItemResponse[];
+    total_books_returned: number;
+    total_money_returned: number;
+    status: string;
+    return_date: string;
+  }
 }

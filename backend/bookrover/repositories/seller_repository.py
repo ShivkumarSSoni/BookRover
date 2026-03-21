@@ -8,7 +8,9 @@ import logging
 from typing import Dict, List, Optional
 
 from boto3.dynamodb.conditions import Attr, Key
+from botocore.exceptions import ClientError
 
+from bookrover.exceptions.not_found import SellerNotFoundError
 from bookrover.interfaces.abstract_seller_repository import AbstractSellerRepository
 
 logger = logging.getLogger(__name__)
@@ -103,3 +105,49 @@ class DynamoDBSellerRepository(AbstractSellerRepository):
             },
         )
         return response.get("Items", [])
+
+    def update(self, seller_id: str, fields: Dict) -> Dict:
+        """Apply a partial update to an existing Seller.
+
+        Args:
+            seller_id: UUID of the seller to update.
+            fields: Dict of field names → new values (always includes updated_at).
+
+        Returns:
+            The full updated Seller dict.
+
+        Raises:
+            SellerNotFoundError: If no seller exists with the given ID.
+        """
+        update_expression_parts = []
+        expression_attribute_names = {}
+        expression_attribute_values = {}
+
+        for key, value in fields.items():
+            name_placeholder = f"#n_{key}"
+            value_placeholder = f":v_{key}"
+            update_expression_parts.append(f"{name_placeholder} = {value_placeholder}")
+            expression_attribute_names[name_placeholder] = key
+            expression_attribute_values[value_placeholder] = value
+
+        update_expression = "SET " + ", ".join(update_expression_parts)
+
+        try:
+            response = self._table.update_item(
+                Key={"seller_id": seller_id},
+                UpdateExpression=update_expression,
+                ExpressionAttributeNames=expression_attribute_names,
+                ExpressionAttributeValues=expression_attribute_values,
+                ConditionExpression=Attr("seller_id").exists(),
+                ReturnValues="ALL_NEW",
+            )
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] == "ConditionalCheckFailedException":
+                raise SellerNotFoundError(seller_id) from exc
+            raise
+
+        logger.info(
+            "DynamoDB update_item",
+            extra={"table": self._table.name, "operation": "update", "key": seller_id},
+        )
+        return response["Attributes"]
