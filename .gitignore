@@ -205,3 +205,11 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# BookRover — Frontend dependencies
+node_modules/
+
+# BookRover — Environment files (never commit real values)
+backend/.env
+backend/.env.dev
+backend/.env.prod
