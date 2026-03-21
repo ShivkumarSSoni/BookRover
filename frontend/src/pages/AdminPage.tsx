@@ -19,9 +19,10 @@ type Tab = 'group-leaders' | 'bookstores';
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<Tab>('group-leaders');
 
-  // Bookstores are fetched here once and shared with GroupLeadersTab
-  // so the multi-select checkboxes don't need a second API call.
-  const { bookstores } = useBookstores();
+  // Single useBookstores instance — shared with both BookstoresTab (mutations)
+  // and GroupLeadersTab (read-only list for checkbox rendering).
+  // This ensures GroupLeadersTab always sees bookstores added in BookstoresTab.
+  const { bookstores, isLoading: bookstoresLoading, error: bookstoresError, clearError: clearBookstoresError, addBookstore, editBookstore, removeBookstore } = useBookstores();
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -66,7 +67,15 @@ export default function AdminPage() {
         {activeTab === 'group-leaders' ? (
           <GroupLeadersTab bookstores={bookstores} />
         ) : (
-          <BookstoresTab />
+          <BookstoresTab
+            bookstores={bookstores}
+            isLoading={bookstoresLoading}
+            error={bookstoresError}
+            clearError={clearBookstoresError}
+            addBookstore={addBookstore}
+            editBookstore={editBookstore}
+            removeBookstore={removeBookstore}
+          />
         )}
       </main>
     </div>

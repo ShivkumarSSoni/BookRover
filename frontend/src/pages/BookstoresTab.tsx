@@ -6,12 +6,22 @@
  */
 
 import { useState } from 'react';
+import { isValidPhoneNumber } from 'libphonenumber-js';
 import { BookRover } from '../types';
 import Spinner from '../components/Spinner';
 import ErrorBanner from '../components/ErrorBanner';
 import SuccessBanner from '../components/SuccessBanner';
 import ConfirmDialog from '../components/ConfirmDialog';
-import { useBookstores } from '../hooks/useBookstores';
+
+interface BookstoresTabProps {
+  bookstores: BookRover.BookStore[];
+  isLoading: boolean;
+  error: string | null;
+  clearError: () => void;
+  addBookstore: (payload: BookRover.BookStoreCreate) => Promise<void>;
+  editBookstore: (id: string, payload: BookRover.BookStoreUpdate) => Promise<void>;
+  removeBookstore: (id: string) => Promise<void>;
+}
 
 const EMPTY_FORM: BookRover.BookStoreCreate = {
   store_name: '',
@@ -20,9 +30,15 @@ const EMPTY_FORM: BookRover.BookStoreCreate = {
   phone_number: '',
 };
 
-export default function BookstoresTab() {
-  const { bookstores, isLoading, error, clearError, addBookstore, editBookstore, removeBookstore } =
-    useBookstores();
+export default function BookstoresTab({
+  bookstores,
+  isLoading,
+  error,
+  clearError,
+  addBookstore,
+  editBookstore,
+  removeBookstore,
+}: BookstoresTabProps) {
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [addForm, setAddForm] = useState<BookRover.BookStoreCreate>(EMPTY_FORM);
@@ -37,9 +53,25 @@ export default function BookstoresTab() {
 
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
-  // ── Add form ──────────────────────────────────────────────────────────────
+  // ── Validation ────────────────────────────────────────────────────────────
 
-  const isAddFormValid = Object.values(addForm).every((v) => v.trim().length > 0);
+  const isPhoneValid = (phone: string) => {
+    try { return isValidPhoneNumber(phone); } catch { return false; }
+  };
+
+  const isAddFormValid =
+    addForm.store_name.trim().length > 0 &&
+    addForm.owner_name.trim().length > 0 &&
+    addForm.address.trim().length > 0 &&
+    isPhoneValid(addForm.phone_number);
+
+  const isEditFormValid =
+    editForm.store_name.trim().length > 0 &&
+    editForm.owner_name.trim().length > 0 &&
+    editForm.address.trim().length > 0 &&
+    isPhoneValid(editForm.phone_number);
+
+  // ── Add form ──────────────────────────────────────────────────────────────
 
   const handleAdd = async () => {
     setAddLoading(true);
@@ -165,7 +197,7 @@ export default function BookstoresTab() {
                 </button>
                 <button
                   onClick={handleEditSave}
-                  disabled={editLoading}
+                  disabled={!isEditFormValid || editLoading}
                   className="flex-1 min-h-[44px] rounded-lg bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                 >
                   {editLoading ? 'Saving…' : 'Save'}
@@ -261,12 +293,15 @@ function BookstoreFormFields({ form, onChange }: FormFieldsProps) {
         <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
         <input
           type="text"
-          maxLength={20}
+          maxLength={15}
           value={form.phone_number}
           onChange={(e) => update('phone_number', e.target.value)}
           className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base focus:border-indigo-500 focus:outline-none"
           placeholder="+914423456789"
         />
+        <p className="mt-1 text-xs text-gray-500">
+          International format: +[country code][10 digits], e.g. +914423456789
+        </p>
       </div>
     </>
   );

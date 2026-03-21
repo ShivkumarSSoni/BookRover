@@ -27,7 +27,7 @@ interface UseBookstoresReturn {
 
 export function useBookstores(): UseBookstoresReturn {
   const [bookstores, setBookstores] = useState<BookRover.BookStore[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {

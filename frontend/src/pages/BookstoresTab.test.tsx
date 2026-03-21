@@ -1,7 +1,8 @@
 /**
  * Tests for BookstoresTab — render, add, edit, delete interactions.
  *
- * All API calls are mocked through the useBookstores hook mock.
+ * BookstoresTab receives state and mutation functions as props (lifted to AdminPage).
+ * Tests pass props directly — no hook mocking needed.
  */
 
 import { render, screen, waitFor } from '@testing-library/react';
@@ -25,18 +26,15 @@ const mockEditBookstore = vi.fn();
 const mockRemoveBookstore = vi.fn();
 const mockClearError = vi.fn();
 
-vi.mock('../hooks/useBookstores', () => ({
-  useBookstores: () => ({
-    bookstores: [MOCK_BOOKSTORE],
-    isLoading: false,
-    error: null,
-    clearError: mockClearError,
-    addBookstore: mockAddBookstore,
-    editBookstore: mockEditBookstore,
-    removeBookstore: mockRemoveBookstore,
-    refresh: vi.fn(),
-  }),
-}));
+const DEFAULT_PROPS = {
+  bookstores: [MOCK_BOOKSTORE],
+  isLoading: false,
+  error: null,
+  clearError: mockClearError,
+  addBookstore: mockAddBookstore,
+  editBookstore: mockEditBookstore,
+  removeBookstore: mockRemoveBookstore,
+};
 
 describe('BookstoresTab', () => {
   beforeEach(() => {
@@ -44,7 +42,7 @@ describe('BookstoresTab', () => {
   });
 
   it('renders the bookstore card with all fields', () => {
-    render(<BookstoresTab />);
+    render(<BookstoresTab {...DEFAULT_PROPS} />);
     expect(screen.getByText('Sri Lakshmi Books')).toBeInTheDocument();
     expect(screen.getByText(/Lakshmi Devi/i)).toBeInTheDocument();
     expect(screen.getByText(/12 MG Road/i)).toBeInTheDocument();
@@ -52,7 +50,7 @@ describe('BookstoresTab', () => {
 
   it('shows add form when "+ Add Bookstore" is clicked', async () => {
     const user = userEvent.setup();
-    render(<BookstoresTab />);
+    render(<BookstoresTab {...DEFAULT_PROPS} />);
 
     await user.click(screen.getByText('+ Add Bookstore'));
 
@@ -61,7 +59,7 @@ describe('BookstoresTab', () => {
 
   it('Save button is disabled when form is empty', async () => {
     const user = userEvent.setup();
-    render(<BookstoresTab />);
+    render(<BookstoresTab {...DEFAULT_PROPS} />);
 
     await user.click(screen.getByText('+ Add Bookstore'));
 
@@ -72,13 +70,13 @@ describe('BookstoresTab', () => {
   it('calls addBookstore with form data on Save', async () => {
     const user = userEvent.setup();
     mockAddBookstore.mockResolvedValue(undefined);
-    render(<BookstoresTab />);
+    render(<BookstoresTab {...DEFAULT_PROPS} />);
 
     await user.click(screen.getByText('+ Add Bookstore'));
     await user.type(screen.getByPlaceholderText('Sri Lakshmi Books'), 'Test Store');
     await user.type(screen.getByPlaceholderText('Lakshmi Devi'), 'Test Owner');
     await user.type(screen.getByPlaceholderText(/12 MG Road/i), 'Test Address');
-    await user.type(screen.getByPlaceholderText('+914423456789'), '+91999');
+    await user.type(screen.getByPlaceholderText('+914423456789'), '+914423456789');
 
     await user.click(screen.getByRole('button', { name: /^save$/i }));
 
@@ -87,14 +85,14 @@ describe('BookstoresTab', () => {
         store_name: 'Test Store',
         owner_name: 'Test Owner',
         address: 'Test Address',
-        phone_number: '+91999',
+        phone_number: '+914423456789',
       });
     });
   });
 
   it('shows edit form when Edit is clicked', async () => {
     const user = userEvent.setup();
-    render(<BookstoresTab />);
+    render(<BookstoresTab {...DEFAULT_PROPS} />);
 
     await user.click(screen.getByRole('button', { name: /edit/i }));
 
@@ -103,7 +101,7 @@ describe('BookstoresTab', () => {
 
   it('shows confirm dialog when Delete is clicked', async () => {
     const user = userEvent.setup();
-    render(<BookstoresTab />);
+    render(<BookstoresTab {...DEFAULT_PROPS} />);
 
     await user.click(screen.getByRole('button', { name: /delete/i }));
 
@@ -114,7 +112,7 @@ describe('BookstoresTab', () => {
   it('calls removeBookstore when deletion is confirmed', async () => {
     const user = userEvent.setup();
     mockRemoveBookstore.mockResolvedValue(undefined);
-    render(<BookstoresTab />);
+    render(<BookstoresTab {...DEFAULT_PROPS} />);
 
     await user.click(screen.getByRole('button', { name: /delete/i }));
     await user.click(screen.getByRole('button', { name: /confirm/i }));
@@ -126,7 +124,7 @@ describe('BookstoresTab', () => {
 
   it('dismisses confirm dialog on Cancel', async () => {
     const user = userEvent.setup();
-    render(<BookstoresTab />);
+    render(<BookstoresTab {...DEFAULT_PROPS} />);
 
     await user.click(screen.getByRole('button', { name: /delete/i }));
     await user.click(screen.getByRole('button', { name: /cancel/i }));

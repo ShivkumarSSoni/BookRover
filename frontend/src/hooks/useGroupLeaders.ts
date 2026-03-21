@@ -27,7 +27,7 @@ interface UseGroupLeadersReturn {
 
 export function useGroupLeaders(): UseGroupLeadersReturn {
   const [groupLeaders, setGroupLeaders] = useState<BookRover.GroupLeader[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
