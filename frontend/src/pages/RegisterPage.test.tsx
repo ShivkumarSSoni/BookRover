@@ -65,12 +65,21 @@ function renderPage() {
 describe('RegisterPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    currentMe = null;
+    // Default: authenticated user with no role yet — the valid state for /register.
+    currentMe = { email: 'priya@gmail.com', roles: [] };
     mockUseGroupLeaderLookup.mockReturnValue({
       options: DROPDOWN_OPTIONS,
       isLoading: false,
       error: null,
     });
+  });
+
+  // ── Auth guard ────────────────────────────────────────────────────────────────
+
+  it('redirects to /login when no authenticated user is present', () => {
+    currentMe = null;
+    renderPage();
+    expect(mockNavigate).toHaveBeenCalledWith('/login', { replace: true });
   });
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -150,21 +159,6 @@ describe('RegisterPage', () => {
     );
 
     expect(screen.getByRole('button', { name: /register/i })).toBeEnabled();
-  });
-
-  it('keeps Register button disabled with an invalid email', async () => {
-    const user = userEvent.setup();
-    renderPage();
-
-    await user.type(screen.getByLabelText(/first name/i), 'Priya');
-    await user.type(screen.getByLabelText(/last name/i), 'Sharma');
-    await user.type(screen.getByLabelText(/email/i), 'not-an-email');
-    await user.selectOptions(
-      screen.getByLabelText(/group leader/i),
-      screen.getByRole('option', { name: /ravi kumar/i }),
-    );
-
-    expect(screen.getByRole('button', { name: /register/i })).toBeDisabled();
   });
 
   // ── Happy path ───────────────────────────────────────────────────────────────

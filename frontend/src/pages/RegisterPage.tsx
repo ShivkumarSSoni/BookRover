@@ -23,7 +23,7 @@ function isValidEmail(value: string): boolean {
 
 export default function RegisterPage() {
   const navigate = useNavigate();
-  const { me, refreshMe } = useAuth();
+  const { me, isLoading, refreshMe } = useAuth();
   const { options, isLoading: lookupLoading, error: lookupError } = useGroupLeaderLookup();
 
   const [firstName, setFirstName] = useState('');
@@ -34,14 +34,19 @@ export default function RegisterPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [didRegister, setDidRegister] = useState(false);
 
-  // Navigate to /inventory once AuthContext commits the new seller role.
-  // Using useEffect ensures navigation fires after React has committed the
-  // refreshMe() state update, avoiding a race condition with RequireRole.
+  // Guard: unauthenticated visitors land here directly → send to /login.
+  // Success: once AuthContext commits the new seller role after registration,
+  // navigate to /inventory. useEffect avoids a race condition with RequireRole.
   useEffect(() => {
-    if (didRegister && me?.roles.includes('seller')) {
+    if (isLoading) return;
+    if (!me) {
+      navigate('/login', { replace: true });
+      return;
+    }
+    if (didRegister && me.roles.includes('seller')) {
       navigate('/inventory', { replace: true });
     }
-  }, [me, didRegister, navigate]);
+  }, [me, isLoading, didRegister, navigate]);
 
   const selectedOption: BookRover.RegistrationDropdownOption | null =
     selectedOptionIndex !== '' ? options[selectedOptionIndex] : null;
