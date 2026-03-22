@@ -8,7 +8,7 @@
  * Route: /register
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BookRover } from '../types';
 import { useGroupLeaderLookup } from '../hooks/useGroupLeaderLookup';
@@ -32,6 +32,16 @@ export default function RegisterPage() {
   const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | ''>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [didRegister, setDidRegister] = useState(false);
+
+  // Navigate to /inventory once AuthContext commits the new seller role.
+  // Using useEffect ensures navigation fires after React has committed the
+  // refreshMe() state update, avoiding a race condition with RequireRole.
+  useEffect(() => {
+    if (didRegister && me?.roles.includes('seller')) {
+      navigate('/inventory', { replace: true });
+    }
+  }, [me, didRegister, navigate]);
 
   const selectedOption: BookRover.RegistrationDropdownOption | null =
     selectedOptionIndex !== '' ? options[selectedOptionIndex] : null;
@@ -60,9 +70,10 @@ export default function RegisterPage() {
         group_leader_id: selectedOption.group_leader_id,
         bookstore_id: selectedOption.bookstore_id,
       });
-      // Refresh identity so AuthContext picks up the new 'seller' role.
+      // Signal success before refreshing identity so the useEffect above
+      // navigates once AuthContext commits the new seller role.
+      setDidRegister(true);
       await refreshMe();
-      navigate('/inventory');
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??

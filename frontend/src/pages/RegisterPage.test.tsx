@@ -22,8 +22,12 @@ vi.mock('../services/sellerService', () => ({
 
 // Mock AuthContext
 const mockRefreshMe = vi.fn();
+// currentMe is module-level so mockRefreshMe implementations can update it;
+// the component re-renders (triggered by setIsSubmitting(false) in finally)
+// will pick up the new value when useAuth() is called again.
+let currentMe: { email: string; roles: string[]; seller_id?: string } | null = null;
 vi.mock('../context/AuthContext', () => ({
-  useAuth: () => ({ me: null, isLoading: false, login: vi.fn(), logout: vi.fn(), refreshMe: mockRefreshMe }),
+  useAuth: () => ({ me: currentMe, isLoading: false, login: vi.fn(), logout: vi.fn(), refreshMe: mockRefreshMe }),
 }));
 
 // Mock react-router-dom navigate
@@ -61,6 +65,7 @@ function renderPage() {
 describe('RegisterPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    currentMe = null;
     mockUseGroupLeaderLookup.mockReturnValue({
       options: DROPDOWN_OPTIONS,
       isLoading: false,
@@ -164,10 +169,15 @@ describe('RegisterPage', () => {
 
   // ── Happy path ───────────────────────────────────────────────────────────────
 
-  it('calls registerSeller with correct payload and redirects to /inventory', async () => {
+  it('calls registerSeller with correct payload and navigates to /inventory after role update', async () => {
     const user = userEvent.setup();
     mockRegisterSeller.mockResolvedValue({ seller_id: 'sel-001' });
-    mockRefreshMe.mockResolvedValue(undefined);
+    // Simulate AuthContext committing the seller role after refreshMe resolves.
+    // The component re-renders (via setIsSubmitting(false)) and useAuth() picks
+    // up the new currentMe, which triggers the navigation useEffect.
+    mockRefreshMe.mockImplementation(async () => {
+      currentMe = { email: 'priya@gmail.com', roles: ['seller'], seller_id: 'sel-001' };
+    });
     renderPage();
 
     await user.type(screen.getByLabelText(/first name/i), 'Priya');
@@ -189,7 +199,7 @@ describe('RegisterPage', () => {
         bookstore_id: 'bs-001',
       });
       expect(mockRefreshMe).toHaveBeenCalled();
-      expect(mockNavigate).toHaveBeenCalledWith('/inventory');
+      expect(mockNavigate).toHaveBeenCalledWith('/inventory', { replace: true });
     });
   });
 
