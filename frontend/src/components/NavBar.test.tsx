@@ -6,6 +6,7 @@
  */
 
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import NavBar from '../components/NavBar';
@@ -14,6 +15,11 @@ import { BookRover } from '../types';
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
 const mockUseSeller = vi.fn();
+const mockLogout = vi.fn();
+
+vi.mock('../context/AuthContext', () => ({
+  useAuth: () => ({ logout: mockLogout }),
+}));
 
 vi.mock('../context/SellerContext', () => ({
   useSeller: () => mockUseSeller(),
@@ -92,5 +98,17 @@ describe('NavBar', () => {
     renderNavBar('seller', '/inventory');
     const newBuyerLink = screen.getByRole('link', { name: 'New Buyer' });
     expect(newBuyerLink.className).not.toMatch(/bg-blue-50/);
+  });
+
+  it('renders a Logout button', () => {
+    renderNavBar('seller');
+    expect(screen.getByRole('button', { name: /logout/i })).toBeInTheDocument();
+  });
+
+  it('calls logout when the Logout button is clicked', async () => {
+    const user = userEvent.setup();
+    renderNavBar('seller');
+    await user.click(screen.getByRole('button', { name: /logout/i }));
+    expect(mockLogout).toHaveBeenCalledOnce();
   });
 });

@@ -9,6 +9,12 @@ import userEvent from '@testing-library/user-event';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import AdminPage from '../pages/AdminPage';
 
+const mockLogout = vi.fn();
+
+vi.mock('../context/AuthContext', () => ({
+  useAuth: () => ({ logout: mockLogout }),
+}));
+
 // Mock the hooks so no network calls are made
 vi.mock('../hooks/useBookstores', () => ({
   useBookstores: () => ({
@@ -37,6 +43,10 @@ vi.mock('../hooks/useGroupLeaders', () => ({
 }));
 
 describe('AdminPage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('renders the page header', () => {
     render(<AdminPage />);
     expect(screen.getByText('BookRover Admin')).toBeInTheDocument();
@@ -64,5 +74,12 @@ describe('AdminPage', () => {
     await user.click(screen.getByRole('button', { name: /group leaders/i }));
 
     expect(screen.getByText('+ Add Group Leader')).toBeInTheDocument();
+  });
+
+  it('calls logout when the Logout button is clicked', async () => {
+    const user = userEvent.setup();
+    render(<AdminPage />);
+    await user.click(screen.getByRole('button', { name: /logout/i }));
+    expect(mockLogout).toHaveBeenCalledOnce();
   });
 });

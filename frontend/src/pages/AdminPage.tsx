@@ -12,11 +12,13 @@
 import { useState } from 'react';
 import GroupLeadersTab from './GroupLeadersTab';
 import BookstoresTab from './BookstoresTab';
+import { useAuth } from '../context/AuthContext';
 import { useBookstores } from '../hooks/useBookstores';
 
 type Tab = 'group-leaders' | 'bookstores';
 
 export default function AdminPage() {
+  const { logout } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('group-leaders');
 
   // Single useBookstores instance — shared with both BookstoresTab (mutations)
@@ -27,9 +29,17 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-4 py-4">
-        <h1 className="text-xl font-brand font-semibold text-blue-600">BookRover Admin</h1>
-        <p className="text-sm text-gray-500">Manage group leaders and bookstores</p>
+      <header className="bg-white border-b border-gray-200 px-4 py-4 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-brand font-semibold text-blue-600">BookRover Admin</h1>
+          <p className="text-sm text-gray-500">Manage group leaders and bookstores</p>
+        </div>
+        <button
+          onClick={logout}
+          className="text-sm font-medium text-gray-500 hover:text-red-600 transition-colors px-3 py-2 rounded-lg hover:bg-red-50"
+        >
+          Logout
+        </button>
       </header>
 
       {/* Tab bar */}

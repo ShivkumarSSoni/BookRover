@@ -15,6 +15,7 @@
  */
 
 import { NavLink } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { useSeller } from '../context/SellerContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -40,6 +41,7 @@ const GROUP_LEADER_LINKS = [{ label: 'Dashboard', to: '/dashboard' }];
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function NavBar({ role }: NavBarProps) {
+  const { logout } = useAuth();
   const { seller } = useSeller();
 
   let links;
@@ -63,7 +65,7 @@ export default function NavBar({ role }: NavBarProps) {
           )}
         </div>
 
-        {/* Right: nav links */}
+        {/* Right: nav links + logout */}
         <div className="flex items-center gap-1 flex-shrink-0">
           {links.map(({ label, to }) => (
             <NavLink
@@ -81,6 +83,12 @@ export default function NavBar({ role }: NavBarProps) {
               {label}
             </NavLink>
           ))}
+          <button
+            onClick={logout}
+            className="min-h-[44px] px-3 py-2 rounded-lg text-sm font-medium text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors ml-1"
+          >
+            Logout
+          </button>
         </div>
       </div>
     </nav>
