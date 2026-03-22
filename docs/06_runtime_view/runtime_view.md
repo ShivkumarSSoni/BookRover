@@ -4,6 +4,38 @@ Key scenarios showing how BookRover components interact at runtime.
 
 ---
 
+## Index
+
+### Narrative Scenarios
+
+| # | Scenario |
+|---|----------|
+| [1](#scenario-1-seller-records-a-sale-at-a-buyers-door) | Seller Records a Sale at a Buyer's Door |
+| [2](#scenario-2-admin-creates-a-new-group-leader) | Admin Creates a New Group Leader |
+| [3](#scenario-3-seller-submits-a-return) | Seller Submits a Return |
+| [4](#scenario-4-group-leader-views-dashboard) | Group Leader Views Dashboard |
+| [5](#scenario-5-seller-requests-group-leader-switch-blocked) | Seller Requests Group Leader Switch (Blocked) |
+
+### Process Sequence Diagrams — Development Environment
+
+| Diagram | PUML Source | Rendered Image |
+|---------|-------------|----------------|
+| Login Workflow (all roles) | [01_login_workflow.puml](diagrams/process/dev/01_login_workflow.puml) | ![Login Workflow (dev)](diagrams/process/dev/01_login_workflow.png) |
+| Admin Workflow | [02_admin_workflow.puml](diagrams/process/dev/02_admin_workflow.puml) | ![Admin Workflow (dev)](diagrams/process/dev/02_admin_workflow.png) |
+| Group Leader Workflow | [03_group_leader_workflow.puml](diagrams/process/dev/03_group_leader_workflow.puml) | ![Group Leader Workflow (dev)](diagrams/process/dev/03_group_leader_workflow.png) |
+| Seller Workflow | [04_seller_workflow.puml](diagrams/process/dev/04_seller_workflow.puml) | ![Seller Workflow (dev)](diagrams/process/dev/04_seller_workflow.png) |
+
+### Process Sequence Diagrams — Production Environment
+
+| Diagram | PUML Source | Rendered Image |
+|---------|-------------|----------------|
+| Login Workflow (all roles) | [01_login_workflow.puml](diagrams/process/prod/01_login_workflow.puml) | ![Login Workflow (prod)](diagrams/process/prod/01_login_workflow.png) |
+| Admin Workflow | [02_admin_workflow.puml](diagrams/process/prod/02_admin_workflow.puml) | ![Admin Workflow (prod)](diagrams/process/prod/02_admin_workflow.png) |
+| Group Leader Workflow | [03_group_leader_workflow.puml](diagrams/process/prod/03_group_leader_workflow.puml) | ![Group Leader Workflow (prod)](diagrams/process/prod/03_group_leader_workflow.png) |
+| Seller Workflow | [04_seller_workflow.puml](diagrams/process/prod/04_seller_workflow.puml) | ![Seller Workflow (prod)](diagrams/process/prod/04_seller_workflow.png) |
+
+---
+
 ## Scenario 1: Seller Records a Sale at a Buyer's Door
 
 ```
