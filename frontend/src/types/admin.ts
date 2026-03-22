@@ -6,6 +6,26 @@
  */
 
 export namespace BookRover {
+  // ── Auth types ────────────────────────────────────────────────────────────
+
+  export type Role = 'admin' | 'group_leader' | 'seller';
+
+  /** Response from GET /me — the caller's identity and resolved BookRover roles. */
+  export interface MeResponse {
+    email: string;
+    roles: Role[];
+    seller_id: string | null;
+    group_leader_id: string | null;
+  }
+
+  /** Response from POST /dev/mock-token — dev-only. */
+  export interface MockTokenResponse {
+    token: string;
+    email: string;
+  }
+
+  // ── Admin types ───────────────────────────────────────────────────────────
+
   export interface BookStore {
     bookstore_id: string;
     store_name: string;

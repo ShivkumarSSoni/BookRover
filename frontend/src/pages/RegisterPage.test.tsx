@@ -20,6 +20,12 @@ vi.mock('../services/sellerService', () => ({
   registerSeller: vi.fn(),
 }));
 
+// Mock AuthContext
+const mockRefreshMe = vi.fn();
+vi.mock('../context/AuthContext', () => ({
+  useAuth: () => ({ me: null, isLoading: false, login: vi.fn(), logout: vi.fn(), refreshMe: mockRefreshMe }),
+}));
+
 // Mock react-router-dom navigate
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async (importOriginal) => {
@@ -161,6 +167,7 @@ describe('RegisterPage', () => {
   it('calls registerSeller with correct payload and redirects to /inventory', async () => {
     const user = userEvent.setup();
     mockRegisterSeller.mockResolvedValue({ seller_id: 'sel-001' });
+    mockRefreshMe.mockResolvedValue(undefined);
     renderPage();
 
     await user.type(screen.getByLabelText(/first name/i), 'Priya');
@@ -181,6 +188,7 @@ describe('RegisterPage', () => {
         group_leader_id: 'gl-001',
         bookstore_id: 'bs-001',
       });
+      expect(mockRefreshMe).toHaveBeenCalled();
       expect(mockNavigate).toHaveBeenCalledWith('/inventory');
     });
   });

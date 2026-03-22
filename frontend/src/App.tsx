@@ -1,25 +1,27 @@
 /**
- * App — root component with React Router.
+ * App — root component with React Router and AuthProvider.
  *
- * Defines all client-side routes. Current routes:
- * - /admin → AdminPage (Admin feature)
- * - /register → RegisterPage (Seller Registration)
- * - /inventory → InventoryPage (Seller Inventory)
- * - /new-buyer → NewBuyerPage (Record a Sale)
- * - /return → ReturnPage (Return Books)
- * - /dashboard → DashboardPage (Group Leader Dashboard)
- * - * → redirect to /register (new users start here)
+ * All routes are wrapped in AuthProvider (single source of truth for identity).
+ * Protected routes are wrapped in RequireRole which redirects unauthenticated
+ * users to /login and users with the wrong role to the appropriate page.
  *
- * Seller routes are wrapped in SellerProvider so all seller pages
- * share one fetched seller profile without repeated API calls.
- *
- * The /dashboard route is wrapped in GroupLeaderProvider (reads GL identity
- * from localStorage) and SellerProvider (NavBar internally calls useSeller()).
+ * Routes:
+ * - /login    → LoginPage      — public entry point
+ * - /register → RegisterPage   — requires auth (new user, no role yet)
+ * - /admin    → AdminPage      — requires 'admin' role
+ * - /inventory → InventoryPage — requires 'seller' role
+ * - /new-buyer → NewBuyerPage  — requires 'seller' role
+ * - /return   → ReturnPage     — requires 'seller' role
+ * - /dashboard → DashboardPage — requires 'group_leader' role
+ * - *         → redirect to /login
  */
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
 import { SellerProvider } from './context/SellerContext';
 import { GroupLeaderProvider } from './context/GroupLeaderContext';
+import RequireRole from './components/RequireRole';
+import LoginPage from './pages/LoginPage';
 import AdminPage from './pages/AdminPage';
 import RegisterPage from './pages/RegisterPage';
 import InventoryPage from './pages/InventoryPage';
@@ -30,55 +32,76 @@ import DashboardPage from './pages/DashboardPage';
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        {/* Admin — no SellerContext needed */}
-        <Route path="/admin" element={<AdminPage />} />
+      <AuthProvider>
+        <Routes>
+          {/* Public */}
+          <Route path="/login" element={<LoginPage />} />
 
-        {/* Registration — no SellerContext yet (seller doesn't exist) */}
-        <Route path="/register" element={<RegisterPage />} />
+          {/* Registration — requires auth token (any role, including no role) */}
+          <Route path="/register" element={<RegisterPage />} />
 
-        {/* Seller pages — all share one SellerProvider */}
-        <Route
-          path="/inventory"
-          element={
-            <SellerProvider>
-              <InventoryPage />
-            </SellerProvider>
-          }
-        />
-        <Route
-          path="/new-buyer"
-          element={
-            <SellerProvider>
-              <NewBuyerPage />
-            </SellerProvider>
-          }
-        />
-        <Route
-          path="/return"
-          element={
-            <SellerProvider>
-              <ReturnPage />
-            </SellerProvider>
-          }
-        />
+          {/* Admin */}
+          <Route
+            path="/admin"
+            element={
+              <RequireRole role="admin">
+                <AdminPage />
+              </RequireRole>
+            }
+          />
 
-        {/* Group Leader Dashboard — GroupLeaderProvider reads GL identity from localStorage.
-            SellerProvider is required because NavBar calls useSeller() internally. */}
-        <Route
-          path="/dashboard"
-          element={
-            <GroupLeaderProvider>
-              <SellerProvider>
-                <DashboardPage />
-              </SellerProvider>
-            </GroupLeaderProvider>
-          }
-        />
+          {/* Seller pages — all share one SellerProvider */}
+          <Route
+            path="/inventory"
+            element={
+              <RequireRole role="seller">
+                <SellerProvider>
+                  <InventoryPage />
+                </SellerProvider>
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/new-buyer"
+            element={
+              <RequireRole role="seller">
+                <SellerProvider>
+                  <NewBuyerPage />
+                </SellerProvider>
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/return"
+            element={
+              <RequireRole role="seller">
+                <SellerProvider>
+                  <ReturnPage />
+                </SellerProvider>
+              </RequireRole>
+            }
+          />
 
-        {/* Redirect root and unknown paths to /register */}
-        <Route path="*" element={<Navigate to="/register" replace />} />
-      </Routes>
+          {/* Group Leader Dashboard.
+              SellerProvider is required because NavBar calls useSeller() internally. */}
+          <Route
+            path="/dashboard"
+            element={
+              <RequireRole role="group_leader">
+                <GroupLeaderProvider>
+                  <SellerProvider>
+                    <DashboardPage />
+                  </SellerProvider>
+                </GroupLeaderProvider>
+              </RequireRole>
+            }
+          />
+
+          {/* Catch-all → /login */}
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   );
 }
+

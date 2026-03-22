@@ -13,6 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import { BookRover } from '../types';
 import { useGroupLeaderLookup } from '../hooks/useGroupLeaderLookup';
 import { registerSeller } from '../services/sellerService';
+import { useAuth } from '../context/AuthContext';
 
 const MAX_NAME_LENGTH = 50;
 
@@ -22,11 +23,12 @@ function isValidEmail(value: string): boolean {
 
 export default function RegisterPage() {
   const navigate = useNavigate();
+  const { me, refreshMe } = useAuth();
   const { options, isLoading: lookupLoading, error: lookupError } = useGroupLeaderLookup();
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(me?.email ?? '');
   const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | ''>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -51,14 +53,15 @@ export default function RegisterPage() {
     setSubmitError(null);
 
     try {
-      const seller = await registerSeller({
+      await registerSeller({
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         email: email.trim(),
         group_leader_id: selectedOption.group_leader_id,
         bookstore_id: selectedOption.bookstore_id,
       });
-      localStorage.setItem('bookrover_seller_id', seller.seller_id);
+      // Refresh identity so AuthContext picks up the new 'seller' role.
+      await refreshMe();
       navigate('/inventory');
     } catch (err: unknown) {
       const message =
@@ -152,8 +155,9 @@ export default function RegisterPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                readOnly={Boolean(me?.email)}
                 placeholder="priya@gmail.com"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className={`w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent${me?.email ? ' bg-gray-50 cursor-default' : ''}`}
               />
             </div>
 

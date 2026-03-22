@@ -1,10 +1,10 @@
 /**
  * SellerContext — React context that holds the current seller's profile.
  *
- * Fetches the seller profile once from GET /sellers/{seller_id} using the
- * seller_id stored in localStorage. All seller pages (Inventory, New Buyer,
- * Return) consume this context to access the seller's name and bookstore
- * without making repeated API calls.
+ * Reads the seller_id from AuthContext (me.seller_id), then fetches the full
+ * seller profile once from GET /sellers/{seller_id}. All seller pages
+ * (Inventory, New Buyer, Return) consume this context to access the seller's
+ * name and bookstore without making repeated API calls.
  *
  * Usage:
  *   - Wrap seller routes in <SellerProvider> inside App.tsx.
@@ -14,6 +14,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { BookRover } from '../types';
 import { fetchSeller } from '../services/sellerService';
+import { useAuth } from './AuthContext';
 
 // ─── Context shape ────────────────────────────────────────────────────────────
 
@@ -31,11 +32,13 @@ interface SellerProviderProps {
 }
 
 export function SellerProvider({ children }: SellerProviderProps) {
+  const { me, isLoading: authLoading } = useAuth();
   const [seller, setSeller] = useState<BookRover.Seller | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const sellerId = localStorage.getItem('bookrover_seller_id');
+    if (authLoading) return;
+    const sellerId = me?.seller_id;
     if (!sellerId) {
       setIsLoading(false);
       return;
@@ -43,10 +46,10 @@ export function SellerProvider({ children }: SellerProviderProps) {
     fetchSeller(sellerId)
       .then(setSeller)
       .catch(() => {
-        // Profile fetch failed — pages will handle redirect via sellerId guard
+        // Profile fetch failed — pages will handle redirect via RequireRole guard.
       })
       .finally(() => setIsLoading(false));
-  }, []);
+  }, [me, authLoading]);
 
   return (
     <SellerContext.Provider value={{ seller, isLoading }}>
