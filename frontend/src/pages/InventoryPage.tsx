@@ -5,18 +5,17 @@
  * Displays a sticky summary bar (books in hand, total cost balance) and a
  * card list of all books with inline add/edit forms.
  *
- * seller_id is read from localStorage (set during registration).
- * If absent, redirects to /register.
+ * seller_id is sourced from AuthContext (me.seller_id).
  *
  * Route: /inventory
  */
 
-import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useMemo } from 'react';
 import { BookRover } from '../types';
 import { useInventory } from '../hooks/useInventory';
 import NavBar from '../components/NavBar';
 import { useSeller } from '../context/SellerContext';
+import { useAuth } from '../context/AuthContext';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -282,14 +281,8 @@ function BookCard({ book, onEdit, onRemove }: BookCardProps) {
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function InventoryPage() {
-  const navigate = useNavigate();
-  const sellerId = localStorage.getItem('bookrover_seller_id') ?? '';
-
-  useEffect(() => {
-    if (!sellerId) {
-      navigate('/register', { replace: true });
-    }
-  }, [sellerId, navigate]);
+  const { me } = useAuth();
+  const sellerId = me?.seller_id ?? '';
 
   const { inventory, isLoading, error, clearError, addNewBook, editBook, deleteBook } =
     useInventory(sellerId);

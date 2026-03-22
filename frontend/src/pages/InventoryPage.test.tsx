@@ -1,30 +1,32 @@
 /**
  * Tests for InventoryPage — Seller Inventory UI behaviours.
  *
- * Mocks useInventory hook, SellerContext, NavBar, and react-router-dom navigation.
- * Covers: summary bar, book cards, redirect if no sellerId,
- * add form toggle, edit form pre-fill, remove disabled when partially sold,
- * remove confirmation dialog.
+ * Mocks useInventory hook, SellerContext, AuthContext, NavBar, and react-router-dom.
+ * Covers: summary bar, book cards, add form toggle, edit form pre-fill,
+ * remove disabled when partially sold, remove confirmation dialog.
  */
 
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import InventoryPage from '../pages/InventoryPage';
 import { BookRover } from '../types';
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
-const mockNavigate = vi.fn();
-
 vi.mock('react-router-dom', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router-dom')>();
-  return {
-    ...actual,
-    useNavigate: () => mockNavigate,
-  };
+  return { ...actual };
 });
+
+// Mock AuthContext — provides the seller_id that InventoryPage reads
+vi.mock('../context/AuthContext', () => ({
+  useAuth: () => ({
+    me: { email: 'anand@example.com', roles: ['seller'], seller_id: 'seller-123' },
+    isLoading: false,
+  }),
+}));
 
 // Mock NavBar so tests don't need SellerContext's full provider tree
 vi.mock('../components/NavBar', () => ({
@@ -127,21 +129,7 @@ function renderPage() {
 describe('InventoryPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    localStorage.setItem('bookrover_seller_id', SELLER_ID);
     mockUseInventory.mockReturnValue(DEFAULT_INVENTORY_STATE);
-  });
-
-  afterEach(() => {
-    localStorage.clear();
-  });
-
-  // ── Auth guard ─────────────────────────────────────────────────────────────
-
-  it('redirects to /register when seller_id is absent from localStorage', () => {
-    localStorage.removeItem('bookrover_seller_id');
-    mockUseInventory.mockReturnValue({ ...DEFAULT_INVENTORY_STATE, isLoading: true });
-    renderPage();
-    expect(mockNavigate).toHaveBeenCalledWith('/register', { replace: true });
   });
 
   // ── Nav bar ────────────────────────────────────────────────────────────────
