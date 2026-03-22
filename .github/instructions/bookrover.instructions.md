@@ -317,6 +317,48 @@ types → service → hook → page → tests → wire App.tsx
 
 ---
 
+## Pre-Push Security Rules — Public Repository
+
+This repository is public. Before staging, committing, or pushing **any** file, perform the following mandatory checks. These rules are non-negotiable and apply to every change without exception.
+
+### What to scan for
+
+Before running `git add`, scan every file that will be included in the commit for:
+
+| Category | Examples |
+|----------|---------|
+| AWS credentials | `AKIA[0-9A-Z]{16}` (access key ID pattern), `aws_secret_access_key` with a real value |
+| Passwords | Any variable named `password`, `passwd`, `pwd` assigned a non-empty string literal |
+| API keys / tokens | Variables named `api_key`, `token`, `secret`, `private_key` assigned a literal value |
+| `.env` files | Any file named `.env`, `.env.dev`, `.env.prod`, `.env.local`, or similar |
+| Private keys | File content beginning with `-----BEGIN RSA PRIVATE KEY-----` or similar PEM headers |
+| Hardcoded URLs with credentials | `https://user:password@host` patterns |
+
+### Exceptions — safe values that must NOT be flagged
+
+- Moto test mock values: `"testing"`, `"test"` assigned to `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` in test files only.
+- `.env.example` files containing only placeholder values (e.g. `SECRET_KEY=your-secret-here`).
+- Comments explaining what a variable should contain.
+
+### Mandatory pre-push procedure
+
+1. **Scan all files** staged for commit against the patterns above.
+2. **If any match is found**:
+   - Do NOT proceed with `git add`, `git commit`, or `git push`.
+   - Stop immediately and report the exact file name, line number, and matched content to the user.
+   - Ask the user for explicit permission to correct the issue.
+   - Only after the fix is confirmed and the scan passes, proceed with the commit.
+3. **If no match is found**: proceed normally.
+
+### Additional rules
+
+- Never add a real `.env` file to a commit — only `.env.example` with placeholder values.
+- Never use `git push --force` on `main`.
+- Never use `--no-verify` to bypass hooks.
+- After every push, confirm to the user what was pushed and to which branch.
+
+---
+
 ## Code Comments & Documentation
 
 - **Every module**: top-level docstring explaining its purpose and what it contains.
