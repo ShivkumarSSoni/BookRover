@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     dynamodb_endpoint_url: str | None = None
     table_prefix: str = "bookrover"
     cors_allowed_origins: list[str] = ["*"]
+    admin_emails: list[str] = []
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
