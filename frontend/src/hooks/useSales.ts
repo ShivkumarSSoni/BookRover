@@ -94,12 +94,14 @@ export function useSales(sellerId: string): UseSalesReturn {
       setIsSubmitting(true);
       try {
         const sale = await createSale(sellerId, { ...buyerDetails, items });
+        // Refresh inventory counts so the next buyer sees accurate stock.
+        await loadInventory();
         return sale;
       } finally {
         setIsSubmitting(false);
       }
     },
-    [sellerId, quantities],
+    [sellerId, quantities, loadInventory],
   );
 
   return {

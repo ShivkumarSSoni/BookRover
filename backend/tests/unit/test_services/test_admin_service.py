@@ -174,16 +174,17 @@ def test_delete_bookstore_raises_not_found(service, bookstore_repo):
 
 
 def test_create_group_leader_returns_response(service, group_leader_repo):
-    """create_group_leader should call repo.create and return a GroupLeaderResponse."""
+    """create_group_leader should normalise email to lowercase and persist the GroupLeader."""
     group_leader_repo.get_by_email.return_value = None
     group_leader_repo.create.return_value = GROUP_LEADER_ITEM
-    payload = GroupLeaderCreate(name="Ravi Kumar", email="ravi@gmail.com", bookstore_ids=["bs-001"])
+    payload = GroupLeaderCreate(name="Ravi Kumar", email="Ravi@Gmail.com", bookstore_ids=["bs-001"])
 
     result = service.create_group_leader(payload)
 
-    group_leader_repo.create.assert_called_once()
+    group_leader_repo.get_by_email.assert_called_once_with("ravi@gmail.com")
+    created_item = group_leader_repo.create.call_args[0][0]
+    assert created_item["email"] == "ravi@gmail.com"
     assert result.group_leader_id == "gl-001"
-    assert result.email == "ravi@gmail.com"
 
 
 def test_create_group_leader_raises_duplicate_email(service, group_leader_repo):

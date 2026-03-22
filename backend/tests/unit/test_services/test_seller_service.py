@@ -111,7 +111,8 @@ def test_register_seller_returns_seller_response(service, seller_repo, group_lea
     seller_repo.get_by_email.assert_called_once_with("priya@gmail.com")
     group_leader_repo.get_by_id.assert_called_once_with("gl-001")
     bookstore_repo.get_by_id.assert_called_once_with("bs-001")
-    seller_repo.create.assert_called_once()
+    created_item = seller_repo.create.call_args[0][0]
+    assert created_item["email"] == "priya@gmail.com"
     assert result.seller_id == "sel-001"
     assert result.first_name == "Priya"
     assert result.status == "active"

@@ -147,15 +147,16 @@ class AdminService(AbstractAdminService):
         Raises:
             DuplicateEmailError: If the email address is already registered.
         """
-        existing = self._group_leader_repository.get_by_email(payload.email)
+        normalised_email = payload.email.strip().lower()
+        existing = self._group_leader_repository.get_by_email(normalised_email)
         if existing is not None:
-            raise DuplicateEmailError(payload.email)
+            raise DuplicateEmailError(normalised_email)
 
         now = utc_now_iso()
         item = {
             "group_leader_id": generate_id(),
             "name": payload.name,
-            "email": payload.email,
+            "email": normalised_email,
             "bookstore_ids": payload.bookstore_ids,
             "created_at": now,
             "updated_at": now,

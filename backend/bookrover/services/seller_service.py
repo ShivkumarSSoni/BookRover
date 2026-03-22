@@ -67,9 +67,10 @@ class SellerService(AbstractSellerService):
             GroupLeaderNotFoundError: If group_leader_id does not exist.
             BookStoreNotFoundError: If bookstore_id does not exist.
         """
-        existing = self._seller_repository.get_by_email(payload.email)
+        normalised_email = payload.email.strip().lower()
+        existing = self._seller_repository.get_by_email(normalised_email)
         if existing is not None:
-            raise DuplicateEmailError(payload.email)
+            raise DuplicateEmailError(normalised_email)
 
         group_leader = self._group_leader_repository.get_by_id(payload.group_leader_id)
         if group_leader is None:
@@ -84,7 +85,7 @@ class SellerService(AbstractSellerService):
             "seller_id": generate_id(),
             "first_name": payload.first_name,
             "last_name": payload.last_name,
-            "email": payload.email,
+            "email": normalised_email,
             "group_leader_id": payload.group_leader_id,
             "bookstore_id": payload.bookstore_id,
             "status": _SELLER_STATUS_ACTIVE,
