@@ -81,6 +81,12 @@ python -m venv .venv
 .venv\Scripts\pip install -r requirements.txt
 .venv\Scripts\pip install -r requirements-dev.txt
 
+# Copy the env template and set your admin email (first time only)
+Copy-Item .env.example .env
+# Then open .env and set: ADMIN_EMAILS=["admin@test.com"]
+# Or skip the .env edit and just set the shell variable:
+$env:ADMIN_EMAILS = '["admin@test.com"]'
+
 # Set required environment variables
 $env:APP_ENV = "dev"
 $env:AWS_DEFAULT_REGION = "ap-south-1"
@@ -111,12 +117,19 @@ npm run dev
 Frontend runs at: http://localhost:5173  
 All `/api/*` requests are proxied to `http://localhost:8080` automatically.
 
-### Access the Admin Feature
+### First-Run Flow
 
-Open: http://localhost:5173/admin
+The local dev auth flow is structurally identical to production — the only difference is that Cognito is replaced by a mock token endpoint. All data is created through the app UI, exactly as in production. There is no seed step.
 
-- **Group Leaders tab** — create, edit, delete group leaders; assign bookstores
-- **Bookstores tab** — create, edit, delete bookstores
+1. Open `http://localhost:5173` — redirected to `/login`.
+2. Enter the email you set in `ADMIN_EMAILS` (e.g. `admin@test.com`) and click **Continue**.
+3. `GET /me` finds your email in `ADMIN_EMAILS` and returns `role: admin` → routed to `/admin`.
+4. From `/admin`, create at least one **bookstore** and one **group leader** (linked to that bookstore).
+5. Open a private/incognito window. Log in as the group leader's email → routed to `/dashboard`.
+6. Log in as a brand-new email → routed to `/register`.
+7. The registration dropdown shows the group leader and bookstore you created. Complete registration → routed to `/inventory`.
+
+> **Note:** moto_server is in-memory. All data is lost when you stop it. Re-run steps 4–7 after each restart.
 
 ### Running Tests
 

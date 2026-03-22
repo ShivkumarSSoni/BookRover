@@ -1,18 +1,24 @@
 /**
  * LoginPage — entry point for all BookRover users.
  *
- * Development mode flow:
- *   1. User enters any email address.
- *   2. Frontend calls POST /dev/mock-token → stores token.
- *   3. Frontend calls GET /me → resolves roles.
- *   4. Redirects based on role:
- *        admin         → /admin
- *        group_leader  → /dashboard
- *        seller        → /inventory
- *        (none)        → /register (new user, needs to sign up)
+ * Auth mode is controlled by VITE_AUTH_MODE (build-time env var):
+ *
+ *   mock   — Dev mode. Shows an email form that calls POST /dev/mock-token.
+ *            GET /me runs real role-lookup against moto-mocked DynamoDB.
+ *            Structurally identical to production — only the token source differs.
+ *
+ *   cognito — Production mode. The mock email form is hidden entirely.
+ *             A "Sign in with your organisation account" button is shown instead.
+ *             (Cognito Hosted UI integration is configured at deploy time.)
+ *
+ * Redirect logic (both modes — driven by GET /me response):
+ *   admin        → /admin
+ *   group_leader → /dashboard
+ *   seller       → /inventory
+ *   (no role)    → /register   (new user, needs to sign up as a seller)
  *
  * If already logged in (token in localStorage + valid GET /me), redirects
- * automatically without showing the form.
+ * automatically without showing the login form.
  *
  * Route: /login
  */
@@ -82,37 +88,61 @@ export default function LoginPage() {
           <p className="mt-2 text-base text-gray-500">Book Selling Made Simple</p>
         </div>
 
-        {/* Login form */}
-        <form onSubmit={handleSubmit} noValidate className="space-y-4">
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-              Email address
-            </label>
-            <input
-              id="email"
-              type="email"
-              autoComplete="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
+        {/* Mock login form — only rendered when VITE_AUTH_MODE=mock */}
+        {import.meta.env.VITE_AUTH_MODE === 'mock' && (
+          <form onSubmit={handleSubmit} noValidate className="space-y-4">
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                Email address
+              </label>
+              <input
+                id="email"
+                type="email"
+                autoComplete="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
 
-          {error && (
-            <p role="alert" className="text-sm text-red-600">
-              {error}
+            {error && (
+              <p role="alert" className="text-sm text-red-600">
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={!canSubmit}
+              className="w-full min-h-[44px] rounded-lg bg-blue-600 text-white text-base font-semibold py-3 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
+            >
+              {isSubmitting ? 'Signing in…' : 'Continue'}
+            </button>
+
+            <p className="text-center text-xs text-gray-400 pt-2">Dev mode — mock token flow</p>
+          </form>
+        )}
+
+        {/* Cognito sign-in — only rendered when VITE_AUTH_MODE=cognito */}
+        {import.meta.env.VITE_AUTH_MODE === 'cognito' && (
+          <div className="space-y-4 text-center">
+            <p className="text-base text-gray-600">
+              Sign in with your organisation account.
             </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={!canSubmit}
-            className="w-full min-h-[44px] rounded-lg bg-blue-600 text-white text-base font-semibold py-3 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
-          >
-            {isSubmitting ? 'Signing in…' : 'Continue'}
-          </button>
-        </form>
+            <button
+              type="button"
+              className="w-full min-h-[44px] rounded-lg bg-blue-600 text-white text-base font-semibold py-3 hover:bg-blue-700 transition-colors"
+              onClick={() => {
+                // TODO(auth): redirect to Cognito Hosted UI — configure
+                // VITE_COGNITO_USER_POOL_ID and VITE_COGNITO_CLIENT_ID at deploy time.
+                window.location.href = '/cognito-login';
+              }}
+            >
+              Sign in with Cognito
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

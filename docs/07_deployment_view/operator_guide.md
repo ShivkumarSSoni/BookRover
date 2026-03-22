@@ -119,21 +119,7 @@ After this first login, the app is operational. Group leaders can sign up themse
 
 ---
 
-## 4. Dev Environment Setup
-
-For local development, no real AWS account is needed. See [backend/README.md](../../backend/README.md) for the full local setup. Key points:
-
-- Run `moto_server` locally to simulate DynamoDB on `http://localhost:8001`.
-- Set `APP_ENV=dev` and `DYNAMODB_ENDPOINT_URL=http://localhost:8001` in `backend/.env`.
-- Set `ADMIN_EMAILS=admin@test.com` (or any email you choose for local testing) in `backend/.env`.
-- Set `VITE_AUTH_MODE=mock` in `frontend/.env.local` — this enables the dev login form.
-- Use `POST /dev/mock-token` with any email to simulate logging in as that user.
-
-**The dev mock flow is structurally identical to production.** The only difference is that Cognito authentication is replaced by the mock token endpoint. `GET /me` runs real role-lookup logic against real (moto-mocked) DynamoDB in both modes.
-
----
-
-## 5. Operating Multiple Environments
+## 4. Operating Multiple Environments
 
 If you run both `dev` and `prod` environments under the same AWS account:
 
