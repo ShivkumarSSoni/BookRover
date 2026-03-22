@@ -1,0 +1,121 @@
+@startuml 01_login_workflow_prod
+title BookRover — Login Workflow (PROD)\nAll Roles: Admin · Group Leader · Seller (new & returning)
+
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam roundcorner 8
+skinparam defaultFontSize 13
+
+actor       "User\n(Browser)"                       as User
+participant "React App\n(CloudFront CDN)"           as FE
+participant "Amazon Cognito\n(User Pool)"           as Cognito
+participant "API Gateway\n(HTTP API)"               as APIGW
+participant "Lambda\n(FastAPI via Mangum)"          as BE
+database    "DynamoDB\n(AWS Managed)"               as DB
+
+note over FE, BE
+  **PROD environment variables required**
+
+  Frontend (set at build time via Vite):
+    VITE_API_BASE_URL=https://<api-id>.execute-api.<region>.amazonaws.com
+    VITE_COGNITO_USER_POOL_ID=<user-pool-id>
+    VITE_COGNITO_CLIENT_ID=<app-client-id>
+    VITE_COGNITO_REGION=<region>
+
+  Backend (Lambda environment variables):
+    APP_ENV=prod
+    ADMIN_EMAILS=admin@example.com
+    BOOKROVER_TABLE_PREFIX=bookrover
+    AWS_REGION=<region>
+    COGNITO_USER_POOL_ID=<user-pool-id>
+    COGNITO_REGION=<region>
+    (No AWS credentials needed — Lambda IAM role provides access)
+
+  AWS Infrastructure:
+    Cognito User Pool — email sign-in, OTP/Magic Link auth flow enabled
+    Lambda IAM Role — DynamoDB: GetItem, PutItem, Query, Scan, UpdateItem, DeleteItem
+                      on specific table ARNs only (least privilege)
+    API Gateway — throttling enabled, CORS restricted to CloudFront origin only
+end note
+
+== Step 1 — User initiates login via Cognito ==
+
+User  -> FE : Navigate to /login\nEnter email + click Continue
+FE    -> Cognito : InitiateAuth — email OTP / Magic Link request\n(Cognito Hosted UI or AWS Amplify SDK)
+
+note right of Cognito
+  Cognito sends a one-time code or
+  magic link to the user's email.
+  No password required — email is
+  the identity proof.
+end note
+
+Cognito --> User : Email with OTP / Magic Link
+User  -> FE : Enter OTP (or click magic link)
+FE    -> Cognito : RespondToAuthChallenge — submit OTP
+
+Cognito --> FE : AuthenticationResult\n{ IdToken (JWT), AccessToken, RefreshToken }
+
+FE    -> FE : Store IdToken in localStorage\n('bookrover_token')\nStore RefreshToken for silent refresh
+
+note right of FE
+  The IdToken is a signed JWT (RS256).
+  It contains: email, sub (user ID),
+  exp (expiry), iss (Cognito issuer URL).
+  It is NOT decodable by end users
+  to reveal secrets (claims are visible
+  but signature cannot be forged).
+end note
+
+== Step 2 — Resolve BookRover identity via GET /me ==
+
+FE    -> APIGW : GET /me\nAuthorization: Bearer <CognitoIdToken>
+APIGW -> BE    : Forward request (after throttle/CORS check)
+BE    -> BE    : Extract Bearer token from Authorization header
+BE    -> Cognito : Fetch JWKS (public keys) — cached after first call\n(https://cognito-idp.<region>.amazonaws.com/<pool-id>/.well-known/jwks.json)
+BE    -> BE    : Verify JWT signature + expiry + issuer
+BE    -> BE    : Extract email from token claims
+
+alt email in ADMIN_EMAILS env var
+    BE   --> APIGW : 200 { roles: ["admin"],\n  seller_id: null, group_leader_id: null }
+    APIGW -> FE : Forward response
+    FE    -> FE : AuthContext.setMe()\nnavigate("/admin")
+
+else email found in group-leaders table
+    BE    -> DB : Query group-leaders by email (GSI on email)
+    DB   --> BE : GroupLeader record
+    BE   --> APIGW : 200 { roles: ["group_leader"],\n  group_leader_id: "uuid", seller_id: null }
+    APIGW -> FE : Forward response
+    FE    -> FE : AuthContext.setMe()\nnavigate("/dashboard")
+
+else email found in sellers table
+    BE    -> DB : Query sellers by email (GSI on email)
+    DB   --> BE : Seller record
+    BE   --> APIGW : 200 { roles: ["seller"],\n  seller_id: "uuid", group_leader_id: null }
+    APIGW -> FE : Forward response
+    FE    -> FE : AuthContext.setMe()\nnavigate("/inventory")
+
+else email verified by Cognito but not yet registered
+    BE    -> DB : Query group-leaders — no match
+    BE    -> DB : Query sellers — no match
+    BE   --> APIGW : 200 { roles: [], seller_id: null, group_leader_id: null }
+    APIGW -> FE : Forward response
+    FE    -> FE : AuthContext.setMe()\nnavigate("/register")
+end
+
+== Step 3 — Silent token refresh ==
+
+note over FE, Cognito
+  Cognito IdTokens expire (default: 1 hour).
+  Before calling any API, the React app checks token expiry.
+  If expired, it uses the RefreshToken to get a new IdToken silently —
+  no user interaction needed — then retries the API call.
+end note
+
+== Step 4 — Logout (any role) ==
+
+User  -> FE : Click Logout
+FE    -> Cognito : GlobalSignOut (invalidates all tokens for this user)
+FE    -> FE : localStorage.removeItem('bookrover_token')\nAuthContext.setMe(null)\nnavigate("/login")
+
+@enduml

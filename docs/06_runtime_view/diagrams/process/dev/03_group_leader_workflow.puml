@@ -1,0 +1,78 @@
+@startuml 03_group_leader_workflow_dev
+title BookRover — Group Leader Workflow (DEV)
+
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam roundcorner 8
+skinparam defaultFontSize 13
+
+actor       "Group Leader\n(Browser)"     as GL
+participant "React App\n(localhost:5173)" as FE
+participant "FastAPI\n(localhost:8000)"   as BE
+database    "DynamoDB\n(AWS / local)"     as DB
+
+note over FE, BE
+  **DEV environment variables required**
+  FE: VITE_API_BASE_URL=http://localhost:8000
+  BE: APP_ENV=dev
+      BOOKROVER_TABLE_PREFIX=bookrover
+      AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+end note
+
+note over GL, FE
+  Precondition: group leader is logged in.
+  localStorage holds bookrover_token.
+  AuthContext holds: group_leader_id, roles=["group_leader"]
+  All requests carry: Authorization: Bearer <token>
+end note
+
+== Dashboard loads at /dashboard ==
+
+FE    -> BE : GET /group-leaders/{group_leader_id}/dashboard\n?bookstore_id={bookstore_id}
+
+note right of BE
+  group_leader_id comes from AuthContext (GET /me response).
+  First bookstore_id defaults to the first in the GL's bookstore_ids list.
+end note
+
+BE    -> DB : GetItem → bookrover-group-leaders-dev (GL record)
+DB   --> BE : { group_leader_id, name, bookstore_ids[], ... }
+BE    -> DB : GetItem → bookrover-bookstores-dev (selected bookstore)
+DB   --> BE : { bookstore_id, store_name, ... }
+BE    -> DB : Query sellers by group_leader_id + bookstore_id
+DB   --> BE : [Seller records]
+
+loop for each seller
+    BE -> DB : Query sales by seller_id + bookstore_id
+    DB --> BE : [Sale records]
+    BE -> BE : Aggregate: total_books_sold, total_amount_collected per seller
+end
+
+BE   --> FE : 200 DashboardResponse\n{\n  group_leader: { name },\n  bookstore: { store_name },\n  sellers: [\n    { seller_name, total_books_sold,\n      total_amount_collected }\n  ],\n  totals: { grand_total_books, grand_total_amount }\n}
+
+== View dashboard data ==
+
+FE    -> FE : Render sellers table\n(columns: Seller Name, Books Sold, Money Collected)\nRender summary cards (total sellers, total amount)
+
+== Sort sellers table ==
+
+GL    -> FE : Click "Books Sold" or "Money Collected" column header
+FE    -> FE : Toggle sort_by / sort_order\n(client-side sort — no API call)
+FE    -> FE : Re-render sorted table
+
+== Switch bookstore context (if multiple bookstores) ==
+
+GL    -> FE : Click a different bookstore tab
+FE    -> BE : GET /group-leaders/{group_leader_id}/dashboard\n?bookstore_id={new_bookstore_id}
+BE    -> DB : Repeat fetch sequence for new bookstore
+DB   --> BE : Fresh data for selected bookstore
+BE   --> FE : 200 DashboardResponse (new bookstore context)
+FE    -> FE : Re-render dashboard with new context
+
+note over GL, DB
+  **Read-only view** — the Group Leader cannot create, edit,
+  or delete sellers, books, or sales. Those actions belong
+  to the Admin (sellers/bookstores) and the Seller (inventory/sales).
+end note
+
+@enduml

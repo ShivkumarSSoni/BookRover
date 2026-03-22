@@ -1,0 +1,155 @@
+@startuml 04_seller_workflow_dev
+title BookRover — Seller Workflow (DEV)\nCovers: Registration · Inventory · New Sale · Return
+
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam roundcorner 8
+skinparam defaultFontSize 13
+
+actor       "Seller\n(Browser)"           as Seller
+participant "React App\n(localhost:5173)" as FE
+participant "FastAPI\n(localhost:8000)"   as BE
+database    "DynamoDB\n(AWS / local)"     as DB
+
+note over FE, BE
+  **DEV environment variables required**
+  FE: VITE_API_BASE_URL=http://localhost:8000
+  BE: APP_ENV=dev
+      BOOKROVER_TABLE_PREFIX=bookrover
+      AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+end note
+
+note over Seller, FE
+  Precondition: seller is logged in (GET /me returned roles=[]).
+  AuthContext holds: me.email, roles=[]
+  Browser is at /register (redirected from login because roles=[])
+end note
+
+== Phase 1 — Registration at /register ==
+
+FE    -> BE : GET /lookup/group-leaders
+BE    -> DB : Scan bookrover-group-leaders-dev
+DB   --> BE : [GroupLeader records with bookstore_ids]
+BE    -> DB : BatchGetItem → bookrover-bookstores-dev (resolve store names)
+DB   --> BE : [Bookstore records]
+BE   --> FE : 200 [ { label: "Ravi Kumar — City Books",\n  group_leader_id, bookstore_id } ]
+
+FE    -> FE : Populate dropdown\nPre-fill email field (read-only) from me.email
+
+Seller -> FE : Fill first name, last name,\nselect group leader + bookstore\nclick Register
+
+FE    -> BE : POST /sellers\n{ first_name, last_name, email,\n  group_leader_id, bookstore_id }
+BE    -> BE : Normalize email → lowercase + strip
+BE    -> DB : Scan sellers by email (duplicate check)
+DB   --> BE : No match
+
+BE    -> DB : GetItem → bookrover-group-leaders-dev\n(validate group_leader_id exists)
+DB   --> BE : GroupLeader record OK
+
+BE    -> DB : GetItem → bookrover-bookstores-dev\n(validate bookstore_id exists)
+DB   --> BE : Bookstore record OK
+
+BE    -> DB : PutItem → bookrover-sellers-dev\n{ seller_id=UUID, status="active",\n  created_at, updated_at }
+DB   --> BE : OK
+BE   --> FE : 201 SellerResponse\n{ seller_id, email, group_leader_id,\n  bookstore_id, status="active" }
+
+FE    -> BE : GET /me  (refreshMe — re-resolve identity)
+BE    -> DB : Scan sellers by email → found
+DB   --> BE : Seller record
+BE   --> FE : 200 { roles: ["seller"], seller_id: "uuid" }
+FE    -> FE : AuthContext.setMe()\nnavigate("/inventory")
+
+== Phase 2 — Inventory Management at /inventory ==
+
+group Load Inventory
+    FE    -> BE : GET /sellers/{seller_id}/inventory
+    BE    -> DB : Query bookrover-inventory-dev by seller_id
+    DB   --> BE : [Book records]
+    BE   --> FE : 200 InventoryResponse\n{ summary: { total_books_in_hand, total_cost_balance },\n  books: [ BookResponse, ... ] }
+end
+
+group Add Book
+    Seller -> FE : Click "+ Add Book", fill name, language,\ninitial count, cost/book, selling price, Submit
+    FE    -> BE : POST /sellers/{seller_id}/inventory\n{ book_name, language, initial_count,\n  cost_per_book, selling_price }
+
+    note right of BE
+      Validates: selling_price > cost_per_book
+    end note
+
+    BE    -> DB : PutItem → bookrover-inventory-dev\n{ book_id=UUID, current_count=initial_count }
+    DB   --> BE : OK
+    BE   --> FE : 201 BookResponse
+    FE    -> FE : Refresh inventory list
+end
+
+group Edit Book
+    Seller -> FE : Click edit icon on a book card,\nchange fields, Save
+    FE    -> BE : PUT /sellers/{seller_id}/inventory/{book_id}\n{ changed fields }
+    BE    -> DB : UpdateItem → refresh updated_at
+    DB   --> BE : OK
+    BE   --> FE : 200 BookResponse (updated)
+end
+
+group Remove Book (only if no partial sales)
+    Seller -> FE : Click remove button (enabled only if\ninitial_count == current_count)
+    FE    -> BE : DELETE /sellers/{seller_id}/inventory/{book_id}
+    BE    -> DB : DeleteItem
+    DB   --> BE : OK
+    BE   --> FE : 204 No Content
+end
+
+== Phase 3 — Record a Sale at /new-buyer ==
+
+FE    -> BE : GET /sellers/{seller_id}/inventory
+BE    -> DB : Query bookrover-inventory-dev
+DB   --> BE : [Book records]
+BE   --> FE : 200 InventoryResponse (book list for selection)
+
+Seller -> FE : Use +/- buttons to select quantities\nFill buyer: first name, last name,\ncountry code, phone number\nclick Save Sale
+
+FE    -> BE : POST /sellers/{seller_id}/sales\n{\n  buyer_first_name, buyer_last_name,\n  buyer_country_code, buyer_phone,\n  items: [{ book_id, quantity_sold }]\n}
+
+BE    -> DB : GetItem → seller (validate exists + status check)
+DB   --> BE : { status: "active" }
+
+loop Validate all items upfront (no mutations yet)
+    BE -> DB : GetItem → bookrover-inventory-dev (each book_id)
+    DB --> BE : Book record
+    BE -> BE : Check quantity_sold ≤ current_count
+end
+
+BE    -> DB : PutItem → bookrover-sales-dev\n(snapshot: book_name, language, selling_price at sale time)
+DB   --> BE : sale_id OK
+
+loop Decrement inventory per sold book
+    BE -> DB : UpdateItem → bookrover-inventory-dev\ncurrent_count -= quantity_sold
+    DB --> BE : OK
+end
+
+BE   --> FE : 201 SaleResponse\n{ sale_id, total_books_sold, total_amount_collected, ... }
+FE    -> FE : Show success banner\nRefresh inventory (GET /sellers/{seller_id}/inventory)
+
+== Phase 4 — Return Books at /return ==
+
+FE    -> BE : GET /sellers/{seller_id}/return
+BE    -> DB : GetItem → seller record
+DB   --> BE : { bookstore_id, status }
+BE    -> DB : GetItem → bookstore record
+DB   --> BE : { store_name, address, ... }
+BE    -> DB : Query unsold books (current_count > 0) from inventory
+DB   --> BE : [Book records]
+BE    -> DB : Query all sales by seller_id (for money collected totals)
+DB   --> BE : [Sale records]
+BE   --> FE : 200 ReturnResponse\n{\n  bookstore: { store_name, address },\n  unsold_books: [ ... ],\n  summary: { total_unsold_books, total_unsold_cost,\n             total_money_collected }\n}
+
+Seller -> FE : Click "Submit Return", confirm in dialog
+
+FE    -> BE : POST /sellers/{seller_id}/return
+BE    -> DB : UpdateItem → seller status = "pending_return" or cleared
+BE    -> DB : Clear/archive unsold inventory records
+DB   --> BE : OK
+BE   --> FE : 200 ReturnConfirmationResponse
+
+FE    -> FE : Show success state
+
+@enduml

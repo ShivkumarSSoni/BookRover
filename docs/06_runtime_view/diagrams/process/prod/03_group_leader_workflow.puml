@@ -1,0 +1,101 @@
+@startuml 03_group_leader_workflow_prod
+title BookRover — Group Leader Workflow (PROD)
+
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam roundcorner 8
+skinparam defaultFontSize 13
+
+actor       "Group Leader\n(Browser)"              as GL
+participant "React App\n(CloudFront CDN)"          as FE
+participant "API Gateway\n(HTTP API)"              as APIGW
+participant "Lambda\n(FastAPI via Mangum)"         as BE
+database    "DynamoDB\n(AWS Managed)"              as DB
+
+note over FE, BE
+  **PROD environment variables required**
+
+  Frontend (set at build time via Vite):
+    VITE_API_BASE_URL=https://<api-id>.execute-api.<region>.amazonaws.com
+
+  Backend (Lambda environment variables):
+    APP_ENV=prod
+    BOOKROVER_TABLE_PREFIX=bookrover
+    AWS_REGION=<region>
+    COGNITO_USER_POOL_ID=<user-pool-id>
+    COGNITO_REGION=<region>
+
+  AWS Infrastructure:
+    Lambda IAM Role — DynamoDB: Query/Scan on bookrover-group-leaders-prod,
+                      bookrover-bookstores-prod, bookrover-sellers-prod,
+                      bookrover-sales-prod (read-only for dashboard)
+    API Gateway — throttling configured to prevent abuse
+    CloudWatch — all Lambda invocations and errors captured
+end note
+
+note over GL, FE
+  Precondition: group leader is logged in via Cognito.
+  localStorage holds a valid Cognito IdToken.
+  AuthContext holds: group_leader_id, roles=["group_leader"]
+  All requests carry: Authorization: Bearer <CognitoIdToken>
+  API Gateway validates token; Lambda verifies JWT signature on each call.
+end note
+
+== Dashboard loads at /dashboard ==
+
+FE    -> APIGW : GET /group-leaders/{group_leader_id}/dashboard\n?bookstore_id={bookstore_id}\nAuthorization: Bearer <token>
+APIGW -> BE   : Forward (after throttle/CORS check)
+
+BE    -> BE   : Verify JWT → extract email → confirm group_leader role
+BE    -> DB   : GetItem → bookrover-group-leaders-prod (GL record)
+DB   --> BE   : { group_leader_id, name, bookstore_ids[], ... }
+BE    -> DB   : GetItem → bookrover-bookstores-prod (selected bookstore)
+DB   --> BE   : { bookstore_id, store_name, ... }
+BE    -> DB   : Query bookrover-sellers-prod by group_leader_id + bookstore_id
+DB   --> BE   : [Seller records]
+
+loop for each seller
+    BE -> DB : Query bookrover-sales-prod by seller_id + bookstore_id
+    DB --> BE : [Sale records]
+    BE -> BE : Aggregate: total_books_sold, total_amount_collected per seller
+end
+
+BE   --> APIGW : 200 DashboardResponse\n{\n  group_leader: { name },\n  bookstore: { store_name },\n  sellers: [\n    { seller_name, total_books_sold,\n      total_amount_collected }\n  ],\n  totals: { grand_total_books,\n            grand_total_amount }\n}
+APIGW -> FE   : Forward response
+
+== View dashboard data ==
+
+FE    -> FE : Render sellers table\n(Seller Name | Books Sold | Money Collected)\nRender summary cards
+
+== Sort sellers table ==
+
+GL    -> FE : Click "Books Sold" or "Money Collected" column header
+FE    -> FE : Toggle sort_by / sort_order — client-side sort (no API call)
+FE    -> FE : Re-render sorted table
+
+note right of FE
+  Sorting is done entirely in the browser —
+  no extra Lambda invocation or DynamoDB
+  read. Cost-efficient for small seller lists.
+end note
+
+== Switch bookstore context (if multiple bookstores) ==
+
+GL    -> FE : Click a different bookstore tab
+FE    -> APIGW : GET /group-leaders/{group_leader_id}/dashboard\n?bookstore_id={new_bookstore_id}
+APIGW -> BE   : Forward
+BE    -> BE   : Verify JWT (re-verified on every request — stateless Lambda)
+BE    -> DB   : Repeat fetch sequence for new bookstore
+DB   --> BE   : Fresh data for selected bookstore
+BE   --> APIGW : 200 DashboardResponse (new bookstore context)
+APIGW -> FE   : Forward response
+FE    -> FE   : Re-render dashboard with new context
+
+note over GL, DB
+  **Read-only view** — the Group Leader cannot create, edit,
+  or delete sellers, books, or sales.
+  Lambda is stateless — JWT is re-verified on every request;
+  no session state is stored in Lambda memory.
+end note
+
+@enduml

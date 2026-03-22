@@ -1,0 +1,146 @@
+@startuml 02_admin_workflow_prod
+title BookRover — Admin Workflow (PROD)
+
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam roundcorner 8
+skinparam defaultFontSize 13
+
+actor       "Admin\n(Browser)"                     as Admin
+participant "React App\n(CloudFront CDN)"          as FE
+participant "API Gateway\n(HTTP API)"              as APIGW
+participant "Lambda\n(FastAPI via Mangum)"         as BE
+database    "DynamoDB\n(AWS Managed)"              as DB
+
+note over FE, BE
+  **PROD environment variables required**
+
+  Frontend (set at build time via Vite):
+    VITE_API_BASE_URL=https://<api-id>.execute-api.<region>.amazonaws.com
+
+  Backend (Lambda environment variables):
+    APP_ENV=prod
+    ADMIN_EMAILS=admin@example.com   ← must match Cognito-verified email exactly
+    BOOKROVER_TABLE_PREFIX=bookrover
+    AWS_REGION=<region>
+    COGNITO_USER_POOL_ID=<user-pool-id>
+    COGNITO_REGION=<region>
+
+  AWS Infrastructure:
+    Lambda IAM Role — DynamoDB permissions on bookrover-bookstores-prod
+                      and bookrover-group-leaders-prod table ARNs only
+    API Gateway — CORS origin locked to CloudFront URL only
+    CloudWatch — structured JSON logs (APP_ENV=prod sets LOG_LEVEL=INFO)
+end note
+
+note over Admin, FE
+  Precondition: admin is logged in via Cognito.
+  localStorage holds a valid Cognito IdToken.
+  All requests carry: Authorization: Bearer <CognitoIdToken>
+  API Gateway validates token format; Lambda verifies JWT signature.
+end note
+
+== Bookstores Tab ==
+
+group Create Bookstore
+    Admin -> FE : Fill store name, owner, address, phone\nclick Save
+    FE    -> APIGW : POST /admin/bookstores\n{ store_name, owner_name, address, phone_number }\nAuthorization: Bearer <token>
+    APIGW -> BE   : Forward (throttle + CORS passed)
+    BE    -> BE   : Verify JWT → extract email → confirm admin role
+    BE    -> DB   : PutItem → bookrover-bookstores-prod
+    DB   --> BE   : OK
+    BE   --> APIGW : 201 BookStoreResponse
+    APIGW -> FE   : Forward response
+    FE    -> FE   : Refresh bookstore list
+end
+
+group List Bookstores
+    FE    -> APIGW : GET /admin/bookstores
+    APIGW -> BE   : Forward
+    BE    -> DB   : Scan bookrover-bookstores-prod
+    DB   --> BE   : [BookStore items]
+    BE   --> APIGW : 200 [BookStoreResponse, ...]
+    APIGW -> FE   : Forward response
+end
+
+group Update Bookstore
+    Admin -> FE : Click Edit, change fields, Save
+    FE    -> APIGW : PUT /admin/bookstores/{bookstore_id}
+    APIGW -> BE   : Forward
+    BE    -> DB   : UpdateItem → bookrover-bookstores-prod\n(refresh updated_at)
+    DB   --> BE   : OK
+    BE   --> APIGW : 200 BookStoreResponse (updated)
+    APIGW -> FE   : Forward response
+end
+
+group Delete Bookstore
+    Admin -> FE : Click Delete, confirm
+    FE    -> APIGW : DELETE /admin/bookstores/{bookstore_id}
+    APIGW -> BE   : Forward
+    BE    -> DB   : DeleteItem → bookrover-bookstores-prod
+    DB   --> BE   : OK
+    BE   --> APIGW : 204 No Content
+    APIGW -> FE   : Forward response
+end
+
+== Group Leaders Tab ==
+
+group Create Group Leader
+    Admin -> FE : Fill name, email, select bookstore(s)\nclick Save
+    FE    -> APIGW : POST /admin/group-leaders\n{ name, email, bookstore_ids[] }
+    APIGW -> BE   : Forward
+    BE    -> BE   : Normalize email → lowercase + strip
+    BE    -> DB   : Query group-leaders by email (GSI)\n(duplicate check)
+    DB   --> BE   : No existing record
+
+    alt email already registered
+        BE  --> APIGW : 409 { "detail": "Email already registered" }
+        APIGW -> FE : Forward error
+    else new email
+        BE    -> DB : PutItem → bookrover-group-leaders-prod\n(group_leader_id=UUID, normalized email)
+        DB   --> BE : OK
+        BE   --> APIGW : 201 GroupLeaderResponse
+        APIGW -> FE : Forward response
+        FE    -> FE : Refresh group leader list
+    end
+end
+
+group List Group Leaders
+    FE    -> APIGW : GET /admin/group-leaders
+    APIGW -> BE   : Forward
+    BE    -> DB   : Scan bookrover-group-leaders-prod
+    DB   --> BE   : [GroupLeader items]
+    BE   --> APIGW : 200 [GroupLeaderResponse, ...]
+    APIGW -> FE   : Forward response
+end
+
+group Update Group Leader
+    Admin -> FE : Click Edit, change name or bookstore assignments, Save
+    FE    -> APIGW : PUT /admin/group-leaders/{group_leader_id}
+    APIGW -> BE   : Forward
+    BE    -> DB   : UpdateItem → bookrover-group-leaders-prod
+    DB   --> BE   : OK
+    BE   --> APIGW : 200 GroupLeaderResponse (updated)
+    APIGW -> FE   : Forward response
+end
+
+group Delete Group Leader
+    Admin -> FE : Click Delete, confirm
+    FE    -> APIGW : DELETE /admin/group-leaders/{group_leader_id}
+    APIGW -> BE   : Forward
+    BE    -> DB   : Count active sellers assigned to this GL
+
+    alt sellers still assigned
+        DB  --> BE : count > 0
+        BE  --> APIGW : 409 { "detail": "Cannot delete — sellers still assigned" }
+        APIGW -> FE : Forward error
+    else no sellers assigned
+        DB  --> BE : count == 0
+        BE    -> DB : DeleteItem → bookrover-group-leaders-prod
+        DB   --> BE : OK
+        BE   --> APIGW : 204 No Content
+        APIGW -> FE : Forward response
+    end
+end
+
+@enduml

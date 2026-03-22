@@ -1,0 +1,113 @@
+@startuml 02_admin_workflow_dev
+title BookRover — Admin Workflow (DEV)
+
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam roundcorner 8
+skinparam defaultFontSize 13
+
+actor       "Admin\n(Browser)"            as Admin
+participant "React App\n(localhost:5173)" as FE
+participant "FastAPI\n(localhost:8000)"   as BE
+database    "DynamoDB\n(AWS / local)"     as DB
+
+note over FE, BE
+  **DEV environment variables required**
+  FE: VITE_API_BASE_URL=http://localhost:8000
+  BE: APP_ENV=dev
+      ADMIN_EMAILS=admin@example.com   ← must match the login email exactly
+      BOOKROVER_TABLE_PREFIX=bookrover
+      AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+end note
+
+note over Admin, FE
+  Precondition: admin is logged in.
+  localStorage holds bookrover_token.
+  All requests carry: Authorization: Bearer <token>
+end note
+
+== Bookstores Tab ==
+
+group Create Bookstore
+    Admin -> FE : Fill store name, owner, address, phone\nclick Save
+    FE    -> BE : POST /admin/bookstores\n{ store_name, owner_name, address, phone_number }
+    BE    -> DB : PutItem → bookrover-bookstores-dev
+    DB   --> BE : OK
+    BE   --> FE : 201 BookStoreResponse\n{ bookstore_id, store_name, ... }
+    FE    -> FE : Refresh bookstore list
+end
+
+group List Bookstores
+    FE    -> BE : GET /admin/bookstores
+    BE    -> DB : Scan bookrover-bookstores-dev
+    DB   --> BE : [BookStore items]
+    BE   --> FE : 200 [BookStoreResponse, ...]
+end
+
+group Update Bookstore
+    Admin -> FE : Click Edit, change fields, click Save
+    FE    -> BE : PUT /admin/bookstores/{bookstore_id}\n{ changed fields only }
+    BE    -> DB : UpdateItem → refresh updated_at
+    DB   --> BE : OK
+    BE   --> FE : 200 BookStoreResponse (updated)
+end
+
+group Delete Bookstore
+    Admin -> FE : Click Delete, confirm
+    FE    -> BE : DELETE /admin/bookstores/{bookstore_id}
+    BE    -> DB : DeleteItem
+    DB   --> BE : OK
+    BE   --> FE : 204 No Content
+end
+
+== Group Leaders Tab ==
+
+group Create Group Leader
+    Admin -> FE : Fill name, email, select bookstore(s)\nclick Save
+    FE    -> BE : POST /admin/group-leaders\n{ name, email, bookstore_ids[] }
+    BE    -> BE : Normalize email → lowercase + strip
+    BE    -> DB : Scan group-leaders by email (duplicate check)
+    DB   --> BE : No existing record
+
+    alt email already registered
+        BE  --> FE : 409 { "detail": "Email already registered" }
+    else new email
+        BE    -> DB : PutItem → bookrover-group-leaders-dev\n(group_leader_id=UUID, normalized email)
+        DB   --> BE : OK
+        BE   --> FE : 201 GroupLeaderResponse
+        FE    -> FE : Refresh group leader list
+    end
+end
+
+group List Group Leaders
+    FE    -> BE : GET /admin/group-leaders
+    BE    -> DB : Scan bookrover-group-leaders-dev
+    DB   --> BE : [GroupLeader items]
+    BE   --> FE : 200 [GroupLeaderResponse, ...]
+end
+
+group Update Group Leader
+    Admin -> FE : Click Edit, change name or bookstore assignments, Save
+    FE    -> BE : PUT /admin/group-leaders/{group_leader_id}\n{ name?, bookstore_ids[]? }
+    BE    -> DB : UpdateItem → refresh updated_at
+    DB   --> BE : OK
+    BE   --> FE : 200 GroupLeaderResponse (updated)
+end
+
+group Delete Group Leader
+    Admin -> FE : Click Delete, confirm
+    FE    -> BE : DELETE /admin/group-leaders/{group_leader_id}
+    BE    -> DB : Count active sellers assigned to this GL
+
+    alt sellers still assigned
+        DB  --> BE : count > 0
+        BE  --> FE : 409 { "detail": "Cannot delete — sellers still assigned" }
+    else no sellers assigned
+        DB  --> BE : count == 0
+        BE    -> DB : DeleteItem → bookrover-group-leaders-dev
+        DB   --> BE : OK
+        BE   --> FE : 204 No Content
+    end
+end
+
+@enduml

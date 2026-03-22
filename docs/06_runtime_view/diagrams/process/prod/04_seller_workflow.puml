@@ -1,0 +1,200 @@
+@startuml 04_seller_workflow_prod
+title BookRover — Seller Workflow (PROD)\nCovers: Registration · Inventory · New Sale · Return
+
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam roundcorner 8
+skinparam defaultFontSize 13
+
+actor       "Seller\n(Browser)"                    as Seller
+participant "React App\n(CloudFront CDN)"          as FE
+participant "API Gateway\n(HTTP API)"              as APIGW
+participant "Lambda\n(FastAPI via Mangum)"         as BE
+database    "DynamoDB\n(AWS Managed)"              as DB
+
+note over FE, BE
+  **PROD environment variables required**
+
+  Frontend (set at build time via Vite):
+    VITE_API_BASE_URL=https://<api-id>.execute-api.<region>.amazonaws.com
+    VITE_COGNITO_USER_POOL_ID=<user-pool-id>
+    VITE_COGNITO_CLIENT_ID=<app-client-id>
+    VITE_COGNITO_REGION=<region>
+
+  Backend (Lambda environment variables):
+    APP_ENV=prod
+    BOOKROVER_TABLE_PREFIX=bookrover
+    AWS_REGION=<region>
+    COGNITO_USER_POOL_ID=<user-pool-id>
+    COGNITO_REGION=<region>
+
+  AWS Infrastructure:
+    Lambda IAM Role — DynamoDB permissions on bookrover-sellers-prod,
+                      bookrover-inventory-prod, bookrover-sales-prod,
+                      bookrover-group-leaders-prod, bookrover-bookstores-prod
+    API Gateway — throttling + CORS (CloudFront origin only)
+    CloudFront — serves React SPA; HTTPS enforced; no HTTP allowed
+    CloudWatch — structured JSON logs per Lambda invocation
+end note
+
+note over Seller, FE
+  Precondition: seller's email is verified by Cognito (logged in).
+  GET /me returned roles=[] — seller not yet in bookrover-sellers-prod.
+  Browser is at /register (redirected by AuthContext).
+  All requests carry: Authorization: Bearer <CognitoIdToken>
+  API Gateway validates token; Lambda verifies JWT signature on each call.
+end note
+
+== Phase 1 — Registration at /register ==
+
+FE    -> APIGW : GET /lookup/group-leaders\nAuthorization: Bearer <token>
+APIGW -> BE   : Forward
+BE    -> BE   : Verify JWT → confirm authenticated user
+BE    -> DB   : Scan bookrover-group-leaders-prod
+DB   --> BE   : [GroupLeader records with bookstore_ids]
+BE    -> DB   : BatchGetItem → bookrover-bookstores-prod (resolve store names)
+DB   --> BE   : [Bookstore records]
+BE   --> APIGW : 200 [ { label: "Ravi Kumar — City Books",\n  group_leader_id, bookstore_id } ]
+APIGW -> FE   : Forward response
+FE    -> FE   : Populate dropdown\nPre-fill email field (read-only) from me.email
+
+Seller -> FE : Fill first name, last name,\nselect group leader + bookstore\nclick Register
+
+FE    -> APIGW : POST /sellers\n{ first_name, last_name, email,\n  group_leader_id, bookstore_id }
+APIGW -> BE   : Forward
+BE    -> BE   : Verify JWT + normalize email → lowercase + strip
+BE    -> DB   : Query sellers by email (GSI — duplicate check)
+DB   --> BE   : No match
+
+BE    -> DB   : GetItem → bookrover-group-leaders-prod\n(validate group_leader_id)
+DB   --> BE   : GroupLeader record OK
+
+BE    -> DB   : GetItem → bookrover-bookstores-prod\n(validate bookstore_id)
+DB   --> BE   : Bookstore record OK
+
+BE    -> DB   : PutItem → bookrover-sellers-prod\n{ seller_id=UUID, status="active",\n  normalized email, created_at, updated_at }
+DB   --> BE   : OK
+BE   --> APIGW : 201 SellerResponse
+APIGW -> FE   : Forward response
+
+FE    -> APIGW : GET /me  (refreshMe — re-resolve identity)
+APIGW -> BE   : Forward
+BE    -> BE   : Verify JWT → extract email
+BE    -> DB   : Query sellers by email (GSI) → found
+DB   --> BE   : Seller record
+BE   --> APIGW : 200 { roles: ["seller"], seller_id: "uuid" }
+APIGW -> FE   : Forward response
+FE    -> FE   : AuthContext.setMe()\nnavigate("/inventory")
+
+== Phase 2 — Inventory Management at /inventory ==
+
+group Load Inventory
+    FE    -> APIGW : GET /sellers/{seller_id}/inventory
+    APIGW -> BE   : Forward
+    BE    -> DB   : Query bookrover-inventory-prod by seller_id
+    DB   --> BE   : [Book records]
+    BE   --> APIGW : 200 InventoryResponse
+    APIGW -> FE   : Forward response
+end
+
+group Add Book
+    Seller -> FE : Click "+ Add Book", fill details, Submit
+    FE    -> APIGW : POST /sellers/{seller_id}/inventory\n{ book_name, language, initial_count,\n  cost_per_book, selling_price }
+    APIGW -> BE   : Forward
+    BE    -> BE   : Verify JWT + validate selling_price > cost_per_book
+    BE    -> DB   : PutItem → bookrover-inventory-prod\n{ book_id=UUID, current_count=initial_count }
+    DB   --> BE   : OK
+    BE   --> APIGW : 201 BookResponse
+    APIGW -> FE   : Forward response
+    FE    -> FE   : Refresh inventory list
+end
+
+group Edit Book
+    Seller -> FE : Click edit icon, change fields, Save
+    FE    -> APIGW : PUT /sellers/{seller_id}/inventory/{book_id}
+    APIGW -> BE   : Forward
+    BE    -> DB   : UpdateItem → bookrover-inventory-prod
+    DB   --> BE   : OK
+    BE   --> APIGW : 200 BookResponse (updated)
+    APIGW -> FE   : Forward response
+end
+
+group Remove Book (only if no partial sales)
+    Seller -> FE : Click remove (enabled only if\ninitial_count == current_count)
+    FE    -> APIGW : DELETE /sellers/{seller_id}/inventory/{book_id}
+    APIGW -> BE   : Forward
+    BE    -> DB   : DeleteItem → bookrover-inventory-prod
+    DB   --> BE   : OK
+    BE   --> APIGW : 204 No Content
+    APIGW -> FE   : Forward response
+end
+
+== Phase 3 — Record a Sale at /new-buyer ==
+
+FE    -> APIGW : GET /sellers/{seller_id}/inventory
+APIGW -> BE   : Forward
+BE    -> DB   : Query bookrover-inventory-prod
+DB   --> BE   : [Book records]
+BE   --> APIGW : 200 InventoryResponse
+APIGW -> FE   : Forward response (book list for selection)
+
+Seller -> FE : Use +/- buttons to select quantities\nFill buyer details\nclick Save Sale
+
+FE    -> APIGW : POST /sellers/{seller_id}/sales\n{\n  buyer_first_name, buyer_last_name,\n  buyer_country_code, buyer_phone,\n  items: [{ book_id, quantity_sold }]\n}
+APIGW -> BE   : Forward
+
+BE    -> BE   : Verify JWT + confirm caller is this seller
+BE    -> DB   : GetItem → bookrover-sellers-prod\n(validate exists + status check)
+DB   --> BE   : { status: "active" }
+
+loop Validate all items upfront (atomic — no mutations yet)
+    BE -> DB : GetItem → bookrover-inventory-prod (each book_id)
+    DB --> BE : Book record
+    BE -> BE : Check quantity_sold ≤ current_count
+end
+
+BE    -> DB   : PutItem → bookrover-sales-prod\n(snapshot: book_name, language,\nselling_price at sale time — immutable history)
+DB   --> BE   : sale_id OK
+
+loop Decrement inventory per sold book
+    BE -> DB : UpdateItem → bookrover-inventory-prod\ncurrent_count -= quantity_sold
+    DB --> BE : OK
+end
+
+BE   --> APIGW : 201 SaleResponse\n{ sale_id, total_books_sold,\n  total_amount_collected, ... }
+APIGW -> FE   : Forward response
+FE    -> FE   : Show success banner\nRefresh inventory (GET /sellers/{seller_id}/inventory)
+
+== Phase 4 — Return Books at /return ==
+
+FE    -> APIGW : GET /sellers/{seller_id}/return
+APIGW -> BE   : Forward
+BE    -> DB   : GetItem → bookrover-sellers-prod
+DB   --> BE   : { bookstore_id, status }
+BE    -> DB   : GetItem → bookrover-bookstores-prod
+DB   --> BE   : { store_name, address, ... }
+BE    -> DB   : Query unsold books (current_count > 0)
+DB   --> BE   : [Book records]
+BE    -> DB   : Query all sales by seller_id
+DB   --> BE   : [Sale records]
+BE   --> APIGW : 200 ReturnResponse\n{\n  bookstore: { store_name, address },\n  unsold_books: [ ... ],\n  summary: { total_unsold_books,\n             total_unsold_cost,\n             total_money_collected }\n}
+APIGW -> FE   : Forward response
+
+Seller -> FE : Click "Submit Return", confirm in dialog
+
+FE    -> APIGW : POST /sellers/{seller_id}/return
+APIGW -> BE   : Forward
+BE    -> DB   : UpdateItem → seller status = "pending_return" or cleared
+BE    -> DB   : Clear/archive unsold inventory records
+DB   --> BE   : OK
+BE   --> APIGW : 200 ReturnConfirmationResponse
+APIGW -> FE   : Forward response
+FE    -> FE   : Show return success state
+
+note over BE, DB
+  All DynamoDB writes use ConditionExpressions
+  to prevent silent overwrites (idempotency guard).
+  Lambda is stateless — safe to retry on failure.
+end note
+
+@enduml
