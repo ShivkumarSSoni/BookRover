@@ -134,11 +134,7 @@ export default function LoginPage() {
               disabled={!isValidEmail(email) || isSubmitting}
               className="w-full min-h-[44px] rounded-lg bg-blue-600 text-white text-base font-semibold py-3 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
             >
-              {isSubmitting
-                ? 'Sending code…'
-                : import.meta.env.VITE_AUTH_MODE === 'cognito'
-                  ? 'Send sign-in code'
-                  : 'Continue'}
+              {isSubmitting ? 'Please wait…' : 'Continue'}
             </button>
 
             {import.meta.env.VITE_AUTH_MODE === 'mock' && (
