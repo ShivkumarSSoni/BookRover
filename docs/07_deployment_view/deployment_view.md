@@ -87,15 +87,16 @@ Run these steps in sequence — each step depends on the previous:
 |------|---------|--------|
 | 1 | IAM | Create `bookrover-lambda-execution-role` with DynamoDB + CloudWatch permissions |
 | 2 | DynamoDB | Create all 7 tables + GSIs in `ap-south-1` (dev tables first) |
-| 3 | Lambda | Create `bookrover-api-dev` function; runtime Python 3.12; attach IAM role; set env vars |
-| 4 | API Gateway | Create HTTP API; Lambda proxy integration; configure CORS |
-| 5 | S3 | Create `bookrover-frontend-dev` bucket; block public access; enable versioning |
-| 6 | ACM | Request SSL cert in **us-east-1** for your domain; DNS validate via Route 53 |
-| 7 | CloudFront | Create distribution; S3 origin (OAC) + API Gateway origin; attach cert; set error pages |
-| 8 | Route 53 | (Optional) Create A alias record → CloudFront distribution |
-| 9 | Deploy | Upload React build to S3; upload Lambda zip; smoke test via CloudFront URL |
+| 3 | Lambda | Create `bookrover-api-dev` function; runtime Python 3.12; attach IAM role; set env vars (add Cognito vars after Step 4) |
+| 4 | Cognito | Create User Pool `bookrover-prod`; configure Email OTP app client (`ALLOW_USER_AUTH`); note Pool ID and Client ID; update Lambda env vars |
+| 5 | API Gateway | Create HTTP API; Lambda proxy integration; configure CORS |
+| 6 | S3 | Create `bookrover-frontend-dev` bucket; block public access; enable versioning |
+| 7 | ACM | Request SSL cert in **us-east-1** for your domain; DNS validate via Route 53 |
+| 8 | CloudFront | Create distribution; S3 origin (OAC) + API Gateway origin; attach cert; set error pages |
+| 9 | Route 53 | (Optional) Create A alias record → CloudFront distribution |
+| 10 | Deploy | Upload React build to S3; upload Lambda zip; smoke test via CloudFront URL |
 
-Detailed step-by-step Console instructions will be in `docs/aws-setup-guide.md` (Phase 4).
+Detailed step-by-step Console instructions are in [operator_guide.md](operator_guide.md).
 
 ---
 
@@ -110,6 +111,7 @@ Detailed step-by-step Console instructions will be in `docs/aws-setup-guide.md` 
 | CloudFront | Global edge (configured in `us-east-1`) | CDN delivers from nearest edge node to user |
 | ACM | **`us-east-1`** | AWS requirement for CloudFront certificates |
 | CloudWatch | `ap-south-1` (Mumbai) | Same region as Lambda for log delivery |
+| Cognito | `ap-south-1` (Mumbai) | Co-located with Lambda; JWKS endpoint same region as JWT verifier |
 
 ---
 

@@ -25,13 +25,13 @@ BookRover sits at the centre of a consignment book-selling workflow. The diagram
             │                                   │
             ▼                                   ▼
   ┌──────────────────┐               ┌──────────────────────┐
-  │  Bookstore       │               │  Gmail / Google      │
-  │  (external data) │               │  (Auth - Phase 6)    │
+  │  Bookstore       │               │  AWS Cognito         │
+  │  (external data) │               │  (Email OTP)         │
   │                  │               │                      │
-  │ Represented as   │               │ Gmail OAuth for      │
-  │ data in the app. │               │ identity federation  │
-  │ Not a direct     │               │ via AWS Cognito      │
-  │ app user.        │               │ (deferred)           │
+  │ Represented as   │               │ Passwordless sign-in │
+  │ data in the app. │               │ via 6-digit OTP.     │
+  │ Not a direct     │               │ JWT issued on code   │
+  │ app user.        │               │ verification.        │
   └──────────────────┘               └──────────────────────┘
 ```
 
@@ -69,7 +69,7 @@ BookRover sits at the centre of a consignment book-selling workflow. The diagram
 | External System | Direction | Protocol | Purpose |
 |----------------|-----------|----------|---------|
 | **User's phone browser** | Inbound | HTTPS (via CloudFront) | All user interactions |
-| **Gmail / Google OAuth** | Inbound (Phase 6) | OAuth 2.0 | Seller and admin authentication |
+| **AWS Cognito (Email OTP)** | Inbound | HTTPS (AWS Amplify SDK / Cognito API) | Seller and admin authentication — passwordless sign-in via 6-digit one-time code |
 | **AWS DynamoDB** | Outbound | AWS SDK (boto3) | Persistent data storage |
 | **AWS CloudWatch** | Outbound | AWS SDK | Structured logging and metrics |
 

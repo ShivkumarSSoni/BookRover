@@ -24,6 +24,7 @@ note over FE, BE
     AWS_REGION=<region>
     COGNITO_USER_POOL_ID=<user-pool-id>
     COGNITO_REGION=<region>
+    COGNITO_CLIENT_ID=<app-client-id>
 
   AWS Infrastructure:
     Lambda IAM Role — DynamoDB: Query/Scan on bookrover-group-leaders-prod,

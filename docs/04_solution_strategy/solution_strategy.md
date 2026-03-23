@@ -109,6 +109,6 @@ To support development and testing without AWS charges, the local stack mirrors 
 | Lambda + API Gateway | `uvicorn` running FastAPI on `localhost:8000` |
 | DynamoDB | `moto_server` on `localhost:8001` (no Docker needed) or DynamoDB Local via Docker |
 | S3 + CloudFront | React Dev Server on `localhost:3000` |
-| Cognito | Role-selector placeholder (dev mode only) |
+| Cognito | Email OTP authentication (prod); `POST /dev/mock-token` (dev only — disabled in prod) |
 
 All automated tests (unit + integration) use `moto` in-memory mocking — no running process needed.

@@ -23,7 +23,7 @@ rectangle "BookRover\n(React SPA + FastAPI + DynamoDB\nHosted on AWS)" as BookRo
 
 ' ─── External systems ─────────────────────────────────
 database "AWS DynamoDB\n(ap-south-1)" as DynamoDB
-rectangle "AWS Cognito +\nGoogle OAuth\n(Phase 6 — deferred)" as Cognito #fff3cd
+rectangle "AWS Cognito\n(Email OTP)" as Cognito #e8f4fd
 rectangle "AWS CloudWatch\n(Logs + Metrics)" as CloudWatch
 rectangle "Bookstore\n(physical entity —\nrepresented as data)" as Bookstore #f0f0f0
 
@@ -34,14 +34,15 @@ Seller --> BookRover : Registers, records sales,\nmanages inventory,\nsubmits re
 
 ' ─── System → External systems ────────────────────────
 BookRover --> DynamoDB : Reads and writes\nall app data
-BookRover --> Cognito : User authentication\nand identity (deferred)
+BookRover --> Cognito : User authentication\n(Email OTP + RS256 JWT)
 BookRover --> CloudWatch : Structured logs\nand metrics
 BookRover ..> Bookstore : Bookstore details stored\nas reference data
 
 ' ─── Note ─────────────────────────────────────────────
 note bottom of Cognito
-  Authentication is deferred to Phase 6.
-  All endpoints are open during development.
+  AWS Cognito Email OTP — passwordless sign-in.
+  6-digit one-time code sent to user's email.
+  RS256-signed JWT verified on every API request.
 end note
 
 @enduml

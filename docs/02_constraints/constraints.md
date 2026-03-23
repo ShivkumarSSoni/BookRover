@@ -21,7 +21,7 @@
 |------------|--------|
 | **Cost must stay near $0/month** | Project is self-funded by a group of friends; no budget for hosting |
 | **No Docker Desktop initially** | Developer's laptop requires IT permissions for Docker installation; use `moto_server` as interim DynamoDB substitute |
-| **Authentication deferred to Phase 6** | Gmail/Google OAuth via Cognito will be added after core features are working. Development uses a role-selector placeholder. |
+| **Authentication implemented in Phase 6** | AWS Cognito Email OTP — passwordless sign-in via 6-digit one-time code. Production verifies RS256 JWTs; dev uses `POST /dev/mock-token` (disabled in prod). |
 | **No ALB / multi-AZ configuration** | Lambda + API Gateway are inherently multi-AZ; ALB adds cost (~$16/month minimum) without benefit at this scale |
 | **Route 53 / custom domain deferred** | $0.50/month cost is avoided until real users need a memorable URL; use free CloudFront URL in the meantime |
 | **Terraform IaC deferred to Phase 7** | Manual AWS Console setup first for learning; Terraform codifies what is already understood |

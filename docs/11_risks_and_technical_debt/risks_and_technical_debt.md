@@ -4,7 +4,7 @@
 
 | ID | Risk | Likelihood | Impact | Mitigation |
 |----|------|-----------|--------|------------|
-| R-1 | **No authentication in phases 1–5** | Medium | High (anyone with the URL can access the app) | Keep CloudFront URL private until Phase 6; do not share the URL publicly |
+| R-1 | **No authentication (phases 1–5)** | N/A | N/A | **RESOLVED (Phase 6)** — Cognito Email OTP enforced on all data endpoints. JWT required on every request. |
 | R-2 | **DynamoDB race condition on concurrent sales** | Low | High (negative inventory count) | Use DynamoDB `UpdateExpression` with `ConditionExpression` — atomic operation prevents concurrent overselling |
 | R-3 | **moto_server data loss on restart** | High | Low (dev only) | Expected behavior; automated tests use in-memory moto; data loss only affects manual dev testing sessions |
 | R-4 | **Lambda cold start latency** | Medium | Low (< 1 second) | Acceptable for non-latency-critical internal tool; future mitigation: Lambda provisioned concurrency if needed |
@@ -18,12 +18,12 @@
 
 | ID | Debt | Reason Accepted | Resolution Plan |
 |----|------|----------------|-----------------|
-| TD-1 | **No authentication (Phase 1–5)** | Scope control — auth adds significant complexity; core features must work first | Phase 6: Gmail OAuth via Cognito |
+| TD-1 | ~~No authentication (Phase 1–5)~~ | Scope control — auth adds significant complexity; core features must work first | **RESOLVED (Phase 6)** — Cognito Email OTP implemented; JWT verification on all data endpoints |
 | TD-2 | **No Terraform IaC (Phase 1–6)** | Manual Console setup first to understand resources before codifying them | Phase 7: Terraform modules to codify all resources |
 | TD-3 | **moto_server instead of DynamoDB Local** | Docker Desktop not yet permitted on developer's laptop | Replace with DynamoDB Local Docker once permissions obtained |
 | TD-4 | **No CI/CD pipeline** | Keeping setup simple in early phases | Future: GitHub Actions for lint, test, deploy on PR merge |
 | TD-5 | **No API versioning** | Single-client app; no versioning needed now | Add `/v1/` prefix if breaking changes become necessary |
-| TD-6 | **Role-selector placeholder for auth (dev mode)** | Auth deferred to Phase 6 | Remove placeholder; replace with Cognito JWT validation |
+| TD-6 | ~~Role-selector placeholder for auth (dev mode)~~ | Auth deferred to Phase 6 | **RESOLVED (Phase 6)** — Mock token restricted to `APP_ENV=dev` only; Cognito JWT validation active in prod |
 | TD-7 | **Dashboard aggregation done in Lambda (not pre-computed)** | Low traffic; real-time aggregation is acceptable now | If dashboard becomes slow, add DynamoDB Streams + pre-aggregated table |
 
 ---

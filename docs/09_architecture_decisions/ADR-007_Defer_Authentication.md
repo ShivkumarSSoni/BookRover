@@ -1,6 +1,6 @@
 # ADR-007: Defer Authentication to Phase 6
 
-**Status**: Accepted (temporary — will be resolved in Phase 6)
+**Status**: Superseded — Resolved in Phase 6
 
 ---
 
@@ -40,6 +40,6 @@ The app is unprotected until Phase 6. Mitigation: the CloudFront URL is not shar
 
 ---
 
-## Resolution Plan
+## Resolution
 
-Phase 6: AWS Cognito User Pool + Google Identity Provider + JWT authorizer on API Gateway. Frontend login via Cognito Hosted UI or custom React login flow.
+**Implemented in Phase 6:** AWS Cognito Email OTP (passwordless). Users enter their email; Cognito sends a 6-digit one-time code; the frontend verifies it via the Amplify SDK and receives a signed RS256 JWT (IdToken). All backend endpoints verify the JWT on every request via `CognitoJWTVerifier`. No Google/OAuth federation — email is the identity provider. The `POST /dev/mock-token` endpoint (dev only) is explicitly blocked when `APP_ENV=prod`.

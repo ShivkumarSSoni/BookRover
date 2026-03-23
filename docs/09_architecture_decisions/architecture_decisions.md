@@ -120,15 +120,17 @@ Each Architecture Decision Record (ADR) is maintained as a separate file for cla
 
 ## ADR-007: Defer Authentication to Phase 6
 
-**Status**: Accepted (temporary)
+**Status**: Superseded — Resolved in Phase 6
 
 **Context**: Gmail OAuth via Cognito is needed for production use. Setting it up early adds complexity before core features exist.
 
-**Decision**: Build all features first with a role-selector placeholder in dev mode. Add Cognito + Google OAuth in Phase 6.
+**Decision**: Build all features first with a role-selector placeholder in dev mode. Add Cognito Email OTP in Phase 6.
 
 **Rationale**: Separating concerns — feature completeness first, then security layer. This is a controlled, intentional deferral — not neglect. All API endpoints are designed with authentication in mind (user identity flows from seller_id in the path).
 
 **Risk**: App is not secured until Phase 6. Mitigated by keeping the app private (not publicized) until auth is in place.
+
+**Resolution (Phase 6)**: AWS Cognito Email OTP implemented. RS256 JWT verified on every request. `POST /dev/mock-token` disabled in prod.
 
 ---
 

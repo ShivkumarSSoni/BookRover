@@ -29,10 +29,11 @@ note over FE, BE
     AWS_REGION=<region>
     COGNITO_USER_POOL_ID=<user-pool-id>
     COGNITO_REGION=<region>
+    COGNITO_CLIENT_ID=<app-client-id>
     (No AWS credentials needed — Lambda IAM role provides access)
 
   AWS Infrastructure:
-    Cognito User Pool — email sign-in, OTP/Magic Link auth flow enabled
+    Cognito User Pool — email sign-in, Email OTP auth flow enabled (ALLOW_USER_AUTH)
     Lambda IAM Role — DynamoDB: GetItem, PutItem, Query, Scan, UpdateItem, DeleteItem
                       on specific table ARNs only (least privilege)
     API Gateway — throttling enabled, CORS restricted to CloudFront origin only
@@ -41,17 +42,17 @@ end note
 == Step 1 — User initiates login via Cognito ==
 
 User  -> FE : Navigate to /login\nEnter email + click Continue
-FE    -> Cognito : InitiateAuth — email OTP / Magic Link request\n(Cognito Hosted UI or AWS Amplify SDK)
+FE    -> Cognito : InitiateAuth — email OTP request\n(AWS Amplify SDK — signIn with USER_AUTH flow)
 
 note right of Cognito
-  Cognito sends a one-time code or
-  magic link to the user's email.
+  Cognito sends a 6-digit one-time code
+  to the user's email address.
   No password required — email is
   the identity proof.
 end note
 
-Cognito --> User : Email with OTP / Magic Link
-User  -> FE : Enter OTP (or click magic link)
+Cognito --> User : Email with 6-digit OTP
+User  -> FE : Enter OTP
 FE    -> Cognito : RespondToAuthChallenge — submit OTP
 
 Cognito --> FE : AuthenticationResult\n{ IdToken (JWT), AccessToken, RefreshToken }
