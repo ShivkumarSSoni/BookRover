@@ -60,7 +60,7 @@ class AuthService(AbstractAuthService):
         normalised_email = email.strip().lower()
 
         if normalised_email in self._admin_emails:
-            logger.info("auth.get_me: admin role resolved", extra={"email": normalised_email})
+            logger.info("auth.get_me: admin role resolved")
             return MeResponse(email=email, roles=[_ROLE_ADMIN])
 
         roles: List[str] = []
@@ -73,7 +73,7 @@ class AuthService(AbstractAuthService):
             group_leader_id = group_leader["group_leader_id"]
             logger.info(
                 "auth.get_me: group_leader role resolved",
-                extra={"email": normalised_email, "group_leader_id": group_leader_id},
+                extra={"group_leader_id": group_leader_id},
             )
 
         seller = self._seller_repository.get_by_email(normalised_email)
@@ -82,7 +82,7 @@ class AuthService(AbstractAuthService):
             seller_id = seller["seller_id"]
             logger.info(
                 "auth.get_me: seller role resolved",
-                extra={"email": normalised_email, "seller_id": seller_id},
+                extra={"seller_id": seller_id},
             )
 
         return MeResponse(

@@ -124,15 +124,11 @@ class SaleService(AbstractSaleService):
         self._sale_repository.create(sale_record)
 
         # Decrement inventory counts after the sale is persisted.
-        for item, book in resolved_items:
-            new_count = int(book["current_count"]) - item.quantity_sold
-            self._inventory_repository.update(
-                item.book_id,
-                {"current_count": new_count, "updated_at": now},
-            )
+        for item, _ in resolved_items:
+            self._inventory_repository.decrement_count(item.book_id, item.quantity_sold, now)
             logger.info(
                 "Inventory decremented",
-                extra={"book_id": item.book_id, "sold": item.quantity_sold, "remaining": new_count},
+                extra={"book_id": item.book_id, "sold": item.quantity_sold},
             )
 
         return self._to_sale_response(sale_record)

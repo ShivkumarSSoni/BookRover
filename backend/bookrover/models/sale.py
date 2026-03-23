@@ -6,14 +6,14 @@ creating and retrieving sale records.
 
 from typing import List
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class SaleItemCreate(BaseModel):
     """A single book item within a sale request."""
 
-    book_id: str = Field(..., min_length=1, description="UUID of the book being sold")
-    quantity_sold: int = Field(..., ge=1, description="Number of copies sold")
+    book_id: str = Field(..., min_length=1, max_length=36, description="UUID of the book being sold")
+    quantity_sold: int = Field(..., ge=1, le=1000, description="Number of copies sold — maximum 1 000 per line item")
 
 
 class SaleCreate(BaseModel):
@@ -32,7 +32,14 @@ class SaleCreate(BaseModel):
         ..., min_length=5, max_length=15, pattern=r"^\d+$",
         description="Buyer phone number — digits only, 5–15 characters",
     )
-    items: List[SaleItemCreate] = Field(..., min_length=1, description="At least one book item")
+    items: List[SaleItemCreate] = Field(..., min_length=1, max_length=50, description="At least one book item — maximum 50 line items per sale")
+
+    @model_validator(mode="after")
+    def no_duplicate_book_ids(self) -> "SaleCreate":
+        ids = [item.book_id for item in self.items]
+        if len(ids) != len(set(ids)):
+            raise ValueError("items must not contain duplicate book_id values")
+        return self
 
 
 class SaleItemResponse(BaseModel):

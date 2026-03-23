@@ -7,7 +7,7 @@ for Sale operations. All access patterns are implemented here.
 import logging
 from typing import Dict, List, Optional
 
-from boto3.dynamodb.conditions import Key
+from boto3.dynamodb.conditions import Attr, Key
 
 from bookrover.interfaces.abstract_sale_repository import AbstractSaleRepository
 
@@ -38,7 +38,10 @@ class DynamoDBSaleRepository(AbstractSaleRepository):
         Returns:
             The persisted item dict, identical to what was stored.
         """
-        self._table.put_item(Item=item)
+        self._table.put_item(
+            Item=item,
+            ConditionExpression=Attr("sale_id").not_exists(),
+        )
         logger.info(
             "DynamoDB put_item",
             extra={"table": self._table.name, "operation": "create", "key": item["sale_id"]},

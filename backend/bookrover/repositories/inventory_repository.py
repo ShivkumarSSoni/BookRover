@@ -10,6 +10,7 @@ from typing import Dict, List, Optional
 from boto3.dynamodb.conditions import Attr, Key
 from botocore.exceptions import ClientError
 
+from bookrover.exceptions.bad_request import InsufficientInventoryError
 from bookrover.exceptions.not_found import BookNotFoundError
 from bookrover.interfaces.abstract_inventory_repository import AbstractInventoryRepository
 
@@ -153,4 +154,34 @@ class DynamoDBInventoryRepository(AbstractInventoryRepository):
         logger.info(
             "DynamoDB delete_item",
             extra={"table": self._table.name, "operation": "delete", "key": book_id},
+        )
+
+    def decrement_count(self, book_id: str, quantity: int, updated_at: str) -> None:
+        """Atomically decrement current_count and guard against concurrent oversell.
+
+        Uses a single DynamoDB update with ADD (atomic number decrement) and a
+        ConditionExpression that checks current_count >= quantity at write time.
+        This makes the stock-sufficiency check and the decrement one atomic
+        operation, preventing two concurrent Lambda invocations from both reading
+        the same stock level and both succeeding when only one should.
+        """
+        try:
+            self._table.update_item(
+                Key={"book_id": book_id},
+                UpdateExpression="ADD current_count :neg_qty SET #n_updated_at = :updated_at",
+                ExpressionAttributeNames={"#n_updated_at": "updated_at"},
+                ExpressionAttributeValues={
+                    ":neg_qty": -quantity,
+                    ":updated_at": updated_at,
+                },
+                ConditionExpression=Attr("book_id").exists() & Attr("current_count").gte(quantity),
+            )
+        except ClientError as exc:
+            code = exc.response["Error"]["Code"]
+            if code == "ConditionalCheckFailedException":
+                raise InsufficientInventoryError(book_id, quantity, 0) from exc
+            raise
+        logger.info(
+            "DynamoDB update_item (atomic decrement)",
+            extra={"table": self._table.name, "operation": "decrement_count", "key": book_id},
         )

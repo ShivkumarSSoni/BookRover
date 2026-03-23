@@ -75,12 +75,19 @@ class DynamoDBSellerRepository(AbstractSellerRepository):
         Returns:
             The Seller dict, or None if not found.
         """
-        response = self._table.scan(FilterExpression=Attr("email").eq(email))
+        items: List[Dict] = []
+        kwargs: Dict = {"FilterExpression": Attr("email").eq(email)}
+        while True:
+            response = self._table.scan(**kwargs)
+            items.extend(response.get("Items", []))
+            last_key = response.get("LastEvaluatedKey")
+            if not last_key:
+                break
+            kwargs["ExclusiveStartKey"] = last_key
         logger.info(
             "DynamoDB scan",
             extra={"table": self._table.name, "operation": "get_by_email"},
         )
-        items = response.get("Items", [])
         return items[0] if items else None
 
     def list_by_group_leader(self, group_leader_id: str) -> List[Dict]:

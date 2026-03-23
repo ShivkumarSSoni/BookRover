@@ -85,10 +85,15 @@ class DynamoDBGroupLeaderRepository(AbstractGroupLeaderRepository):
         Returns:
             The GroupLeader dict, or None if not found.
         """
-        response = self._table.scan(
-            FilterExpression=Attr("email").eq(email),
-        )
-        items = response.get("Items", [])
+        items: List[Dict] = []
+        kwargs: Dict = {"FilterExpression": Attr("email").eq(email)}
+        while True:
+            response = self._table.scan(**kwargs)
+            items.extend(response.get("Items", []))
+            last_key = response.get("LastEvaluatedKey")
+            if not last_key:
+                break
+            kwargs["ExclusiveStartKey"] = last_key
         logger.debug(
             "DynamoDB scan (by email)",
             extra={"table": self._table.name, "operation": "get_by_email"},
@@ -101,12 +106,20 @@ class DynamoDBGroupLeaderRepository(AbstractGroupLeaderRepository):
         Returns:
             List of GroupLeader dicts (may be empty).
         """
-        response = self._table.scan()
+        items: List[Dict] = []
+        kwargs: Dict = {}
+        while True:
+            response = self._table.scan(**kwargs)
+            items.extend(response.get("Items", []))
+            last_key = response.get("LastEvaluatedKey")
+            if not last_key:
+                break
+            kwargs["ExclusiveStartKey"] = last_key
         logger.debug(
             "DynamoDB scan",
             extra={"table": self._table.name, "operation": "list_all"},
         )
-        return response.get("Items", [])
+        return items
 
     def update(self, group_leader_id: str, fields: Dict) -> Dict:
         """Apply a partial update to an existing GroupLeader.

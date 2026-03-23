@@ -41,6 +41,14 @@ class BookUpdate(BaseModel):
     cost_per_book: Optional[Decimal] = Field(None, gt=Decimal("0"), le=Decimal("100000"))
     selling_price: Optional[Decimal] = Field(None, gt=Decimal("0"), le=Decimal("100000"))
 
+    @model_validator(mode="after")
+    def validate_selling_price_above_cost(self) -> "BookUpdate":
+        """Ensure selling_price exceeds cost_per_book when both are supplied in the same request."""
+        if self.selling_price is not None and self.cost_per_book is not None:
+            if self.selling_price <= self.cost_per_book:
+                raise ValueError("selling_price must be greater than cost_per_book")
+        return self
+
 
 class BookResponse(BaseModel):
     """Response model for a single inventory book with computed balance fields."""

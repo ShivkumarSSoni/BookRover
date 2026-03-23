@@ -215,3 +215,6 @@ node_modules/
 backend/.env
 backend/.env.dev
 backend/.env.prod
+frontend/.env
+frontend/.env.local
+frontend/.env.prod

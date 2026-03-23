@@ -15,8 +15,8 @@ class SellerCreate(BaseModel):
     first_name: str = Field(..., min_length=1, max_length=50, description="Seller's first name")
     last_name: str = Field(..., min_length=1, max_length=50, description="Seller's last name")
     email: EmailStr = Field(..., description="Gmail address — must be unique across all sellers")
-    group_leader_id: str = Field(..., min_length=1, description="UUID of the assigned group leader")
-    bookstore_id: str = Field(..., min_length=1, description="UUID of the assigned bookstore")
+    group_leader_id: str = Field(..., min_length=1, max_length=36, description="UUID of the assigned group leader")
+    bookstore_id: str = Field(..., min_length=1, max_length=36, description="UUID of the assigned bookstore")
 
 
 class SellerUpdate(BaseModel):

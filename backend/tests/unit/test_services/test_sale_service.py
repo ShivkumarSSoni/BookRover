@@ -5,9 +5,10 @@ No DynamoDB, no HTTP, no moto required.
 """
 
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
+from pydantic import ValidationError
 
 from bookrover.exceptions.bad_request import InsufficientInventoryError
 from bookrover.exceptions.conflict import SellerPendingReturnError
@@ -152,17 +153,14 @@ def test_create_sale_computes_totals_correctly(service, sale_repo, inventory_rep
 
 
 def test_create_sale_decrements_inventory_after_sale(service, sale_repo, inventory_repo, seller_repo):
-    """create_sale must call inventory_repo.update with decremented current_count."""
+    """create_sale must call inventory_repo.decrement_count with the sold quantity."""
     seller_repo.get_by_id.return_value = SELLER_ITEM
     inventory_repo.get_by_id.return_value = BOOK_ITEM
     sale_repo.create.return_value = SALE_RECORD
 
     service.create_sale("sel-001", SALE_PAYLOAD)
 
-    inventory_repo.update.assert_called_once()
-    call_args = inventory_repo.update.call_args
-    assert call_args[0][0] == "book-001"
-    assert call_args[0][1]["current_count"] == 8  # 10 - 2
+    inventory_repo.decrement_count.assert_called_once_with("book-001", 2, ANY)
 
 
 def test_create_sale_persists_before_decrementing_inventory(service, sale_repo, inventory_repo, seller_repo):
@@ -171,7 +169,7 @@ def test_create_sale_persists_before_decrementing_inventory(service, sale_repo, 
     seller_repo.get_by_id.return_value = SELLER_ITEM
     inventory_repo.get_by_id.return_value = BOOK_ITEM
     sale_repo.create.side_effect = lambda r: call_order.append("create") or r
-    inventory_repo.update.side_effect = lambda *a, **kw: call_order.append("update")
+    inventory_repo.decrement_count.side_effect = lambda *a, **kw: call_order.append("update")
 
     service.create_sale("sel-001", SALE_PAYLOAD)
 
@@ -252,7 +250,7 @@ def test_create_sale_does_not_mutate_inventory_if_book_not_found(
         service.create_sale("sel-001", SALE_PAYLOAD)
 
     sale_repo.create.assert_not_called()
-    inventory_repo.update.assert_not_called()
+    inventory_repo.decrement_count.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -309,3 +307,23 @@ def test_get_sale_raises_not_found_for_wrong_seller(service, sale_repo):
 
     with pytest.raises(SaleNotFoundError):
         service.get_sale("sel-001", "sale-001")
+
+
+# ---------------------------------------------------------------------------
+# SaleCreate model validation
+# ---------------------------------------------------------------------------
+
+
+def test_sale_create_rejects_duplicate_book_ids():
+    """SaleCreate must reject an items list that contains duplicate book_id values."""
+    with pytest.raises(ValidationError):
+        SaleCreate(
+            buyer_first_name="Ravi",
+            buyer_last_name="Kumar",
+            buyer_country_code="+91",
+            buyer_phone="9876543210",
+            items=[
+                SaleItemCreate(book_id="book-001", quantity_sold=2),
+                SaleItemCreate(book_id="book-001", quantity_sold=3),
+            ],
+        )

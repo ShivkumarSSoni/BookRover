@@ -21,14 +21,6 @@ class InsufficientStockError(BookRoverBusinessRuleError):
         self.available = available
 
 
-class SellerPendingReturnError(BookRoverBusinessRuleError):
-    """Raised when a seller with status 'pending_return' attempts to create a new sale."""
-
-    def __init__(self, seller_id: str) -> None:
-        super().__init__(
-            f"Seller '{seller_id}' has a pending return and cannot record new sales."
-        )
-        self.seller_id = seller_id
 
 
 class GroupLeaderSwitchNotAllowedError(BookRoverBusinessRuleError):

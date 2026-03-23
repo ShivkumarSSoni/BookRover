@@ -13,7 +13,6 @@ from bookrover.exceptions.business_rule import (
     BookRoverBusinessRuleError,
     GroupLeaderSwitchNotAllowedError,
     InsufficientStockError,
-    SellerPendingReturnError,
 )
 from bookrover.exceptions.conflict import (
     ActiveSellersExistError,
@@ -21,6 +20,7 @@ from bookrover.exceptions.conflict import (
     BookRoverConflictError,
     DuplicateEmailError,
     InventoryAssociatedError,
+    SellerPendingReturnError,
 )
 from bookrover.exceptions.not_found import (
     BookNotFoundError,

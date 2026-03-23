@@ -15,6 +15,7 @@ In production (APP_ENV=prod):
 
 import base64
 import logging
+from functools import lru_cache
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
@@ -68,25 +69,51 @@ def get_auth_service(
     )
 
 
+@lru_cache
+def _cached_cognito_verifier(
+    user_pool_id: str,
+    region: str,
+    client_id: str,
+) -> CognitoJWTVerifier:
+    """Return a cached CognitoJWTVerifier instance for the given User Pool coordinates.
+
+    lru_cache ensures the same instance (with its populated JWKS cache) is
+    reused across all requests that share the same settings, eliminating a
+    JWKS round-trip on every authenticated request.
+
+    Args:
+        user_pool_id: Cognito User Pool ID.
+        region: AWS region of the User Pool.
+        client_id: App Client ID for audience validation.
+
+    Returns:
+        Cached CognitoJWTVerifier instance.
+    """
+    return CognitoJWTVerifier(
+        user_pool_id=user_pool_id,
+        region=region,
+        client_id=client_id,
+    )
+
+
 def get_cognito_verifier(
     settings: Settings = Depends(get_settings),
 ) -> CognitoJWTVerifier:
-    """Build and return a CognitoJWTVerifier for the current User Pool.
+    """Return the shared CognitoJWTVerifier for the current User Pool.
 
-    Only meaningful when APP_ENV=prod.  The verifier instance is constructed
-    on every request (lightweight — no network call until ``verify()`` is
-    called and the JWKS is not yet cached).
+    Delegates to _cached_cognito_verifier so the same instance (and its
+    populated JWKS cache) is reused across requests for the same settings.
 
     Args:
         settings: Injected application settings.
 
     Returns:
-        CognitoJWTVerifier configured for the User Pool in settings.
+        Cached CognitoJWTVerifier instance.
     """
-    return CognitoJWTVerifier(
-        user_pool_id=settings.cognito_user_pool_id,
-        region=settings.cognito_region,
-        client_id=settings.cognito_client_id,
+    return _cached_cognito_verifier(
+        settings.cognito_user_pool_id,
+        settings.cognito_region,
+        settings.cognito_client_id,
     )
 
 

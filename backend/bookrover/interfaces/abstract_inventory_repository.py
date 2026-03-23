@@ -70,3 +70,18 @@ class AbstractInventoryRepository(ABC):
         Raises:
             BookNotFoundError: If no book exists with the given ID.
         """
+
+    @abstractmethod
+    def decrement_count(self, book_id: str, quantity: int, updated_at: str) -> None:
+        """Atomically decrement a Book's current_count by quantity.
+
+        Args:
+            book_id: UUID of the book.
+            quantity: Number of copies to subtract from current_count.
+            updated_at: ISO timestamp to write into the updated_at field.
+
+        Raises:
+            InsufficientInventoryError: If current_count < quantity at write time
+                (guards against concurrent oversell).
+            BookNotFoundError: If no book exists with the given ID.
+        """

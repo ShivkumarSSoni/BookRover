@@ -72,9 +72,17 @@ class DynamoDBBookstoreRepository(AbstractBookstoreRepository):
         Returns:
             List of BookStore dicts (may be empty).
         """
-        response = self._table.scan()
+        items: List[Dict] = []
+        kwargs: Dict = {}
+        while True:
+            response = self._table.scan(**kwargs)
+            items.extend(response.get("Items", []))
+            last_key = response.get("LastEvaluatedKey")
+            if not last_key:
+                break
+            kwargs["ExclusiveStartKey"] = last_key
         logger.debug("DynamoDB scan", extra={"table": self._table.name, "operation": "list_all"})
-        return response.get("Items", [])
+        return items
 
     def update(self, bookstore_id: str, fields: Dict) -> Dict:
         """Apply a partial update to an existing BookStore.

@@ -14,7 +14,7 @@ class GroupLeaderCreate(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=100, description="Full name of the group leader")
     email: EmailStr = Field(..., description="Gmail address — must be unique")
-    bookstore_ids: List[str] = Field(..., min_length=1, description="List of associated bookstore UUIDs")
+    bookstore_ids: List[str] = Field(..., min_length=1, max_length=50, description="List of associated bookstore UUIDs")
 
 
 class GroupLeaderUpdate(BaseModel):
@@ -25,7 +25,7 @@ class GroupLeaderUpdate(BaseModel):
     """
 
     name: Optional[str] = Field(None, min_length=1, max_length=100)
-    bookstore_ids: Optional[List[str]] = Field(None, min_length=1)
+    bookstore_ids: Optional[List[str]] = Field(None, min_length=1, max_length=50)
 
 
 class GroupLeaderResponse(BaseModel):

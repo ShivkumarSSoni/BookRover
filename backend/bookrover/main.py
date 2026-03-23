@@ -5,14 +5,18 @@ and applies middleware. The Mangum handler wraps the app for AWS Lambda.
 """
 
 from contextlib import asynccontextmanager
+import logging
 
 import boto3
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from mangum import Mangum
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from bookrover.config import Settings
+
+logger = logging.getLogger(__name__)
 
 # Maximum allowed request body size (500 KB). Requests exceeding this are
 # rejected with HTTP 413 before reaching any route handler.
@@ -31,6 +35,10 @@ class BodySizeLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         content_length = request.headers.get("content-length")
         if content_length and int(content_length) > _MAX_BODY_BYTES:
+            logger.warning(
+                "Request rejected: body too large",
+                extra={"content_length": content_length, "path": request.url.path},
+            )
             return Response(
                 content='{"detail":"Request body too large."}',
                 status_code=413,
@@ -173,6 +181,19 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type"],
     )
+
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+        """Catch all unhandled exceptions and return a generic 500 response.
+
+        Logs the full traceback server-side (visible in CloudWatch) while returning
+        a sanitised error message to the caller — never exposing internal detail.
+        """
+        logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "An unexpected error occurred."},
+        )
 
     # Routers are registered here as features are built:
     from bookrover.routers import admin, auth, dashboard, inventory, lookup, returns, sales, sellers
