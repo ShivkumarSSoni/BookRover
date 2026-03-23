@@ -58,7 +58,7 @@ The app tracks inventory per seller, records every sale, and provides the group 
 | Database | AWS DynamoDB |
 | Hosting — Frontend | AWS S3 + CloudFront |
 | Hosting — Backend | AWS Lambda + API Gateway (HTTP API) |
-| Authentication | Gmail/Google OAuth via AWS Cognito (deferred to rollout phase) |
+| Authentication | AWS Cognito Email OTP |
 | Source Control | GitHub |
 | IaC (future) | Terraform |
 
@@ -73,7 +73,7 @@ The app tracks inventory per seller, records every sale, and provides the group 
 | **API Gateway (HTTP API)** | Expose backend Lambda as REST endpoints |
 | **Lambda** | Run FastAPI backend (via Mangum adapter) |
 | **DynamoDB** | Serverless NoSQL database for all app data |
-| **Cognito** | Gmail federation for authentication (deferred) |
+| **Cognito** | Email OTP authentication (implemented) |
 | **CloudWatch** | Logs and metrics for Lambda and API Gateway |
 | **IAM** | Least-privilege roles for Lambda execution |
 | **ACM (Certificate Manager)** | SSL/TLS certificate for custom domain |
@@ -99,7 +99,7 @@ The app tracks inventory per seller, records every sale, and provides the group 
 | **Phase 3** | Frontend: React app, all pages, mobile-first UI, connected to backend |
 | **Phase 4** | AWS manual setup (Console): DynamoDB, Lambda, API Gateway, S3, CloudFront |
 | **Phase 5** | End-to-end testing on AWS |
-| **Phase 6** | Authentication: Gmail/Google OAuth via Cognito |
+| **Phase 6** | Authentication: Cognito Email OTP — custom login page, backend JWT verification, operator docs (complete) |
 | **Phase 7** | Terraform IaC — codify the manual AWS setup |
 
 ---
@@ -122,4 +122,3 @@ The app tracks inventory per seller, records every sale, and provides the group 
 - Multi-language UI
 - Payment gateway integration
 - PDF report generation
-- Authentication (deferred to Phase 6)

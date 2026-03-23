@@ -38,7 +38,7 @@ Admin (separate login)
 | Field | Type | Description |
 |-------|------|-------------|
 | `admin_id` | String (UUID) | Partition Key |
-| `email` | String | Gmail address (unique) |
+| `email` | String | Email address (unique) |
 | `created_at` | String (ISO 8601) | Creation timestamp |
 
 **Access patterns:**
@@ -74,7 +74,7 @@ Admin (separate login)
 |-------|------|-------------|-------------|
 | `group_leader_id` | String (UUID) | PK | Unique identifier |
 | `name` | String | 1–100 chars | Full name |
-| `email` | String | valid email | Gmail address (for future auth) |
+| `email` | String | valid email | Email address (for Cognito auth) |
 | `bookstore_ids` | List[String] | min 1 | List of associated bookstore UUIDs |
 | `created_at` | String (ISO 8601) | | Creation timestamp |
 | `updated_at` | String (ISO 8601) | | Last updated timestamp |
@@ -99,7 +99,7 @@ Admin (separate login)
 | `seller_id` | String (UUID) | PK | Unique identifier |
 | `first_name` | String | 1–50 chars | First name |
 | `last_name` | String | 1–50 chars | Last name |
-| `email` | String | valid email | Gmail address (for future auth) |
+| `email` | String | valid email | Email address (for Cognito auth) |
 | `group_leader_id` | String (UUID) | required | Currently assigned group leader |
 | `bookstore_id` | String (UUID) | required | Currently assigned bookstore |
 | `status` | String (Enum) | | `active` or `pending_return` |
@@ -115,7 +115,7 @@ Admin (separate login)
 
 **Access patterns:**
 - Get seller by `seller_id`
-- Get seller by `email` (for future auth)
+- Get seller by `email` (for Cognito auth lookup)
 - List sellers by `group_leader_id` (GSI) — for Group Leader Dashboard
 
 ---

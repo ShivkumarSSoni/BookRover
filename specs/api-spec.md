@@ -12,7 +12,60 @@
 - All timestamps are ISO 8601 UTC strings.
 - Error responses always follow: `{"detail": "human-readable message"}`
 - Decimal values (prices, amounts) are represented as numbers with 2 decimal places.
-- Authentication: all endpoints will require a Bearer token (via Cognito) — deferred. For now, endpoints are open for development.
+- Authentication: in production, `GET /auth/me` requires a valid Cognito ID token sent as `Authorization: Bearer <token>`. All data endpoints (`/admin/*`, `/sellers/*`, `/bookstores`, `/group-leaders`) are currently open — backend RBAC enforcement and seller-scoping validation are pending security items.
+
+---
+
+## 0. Auth Endpoints
+
+### 0.1 Get Current User
+```
+GET /auth/me
+```
+Resolves the caller’s identity from their token and returns their BookRover profile.
+
+**Headers:**
+```
+Authorization: Bearer <cognito_id_token>
+```
+
+**Response `200 OK` (seller):**
+```json
+{
+  "user_type": "seller",
+  "seller_id": "<uuid>",
+  "email": "seller@example.com",
+  "first_name": "Anand",
+  "last_name": "Raj",
+  "group_leader_id": "<uuid>",
+  "bookstore_id": "<uuid>",
+  "status": "active"
+}
+```
+
+**Response `200 OK` (group leader):**
+```json
+{
+  "user_type": "group_leader",
+  "group_leader_id": "<uuid>",
+  "email": "gl@example.com",
+  "name": "Ravi Kumar",
+  "bookstore_ids": ["<uuid>"]
+}
+```
+
+**Response `200 OK` (admin):**
+```json
+{
+  "user_type": "admin",
+  "admin_id": "<uuid>",
+  "email": "admin@example.com"
+}
+```
+
+**Errors:**
+- `401 Unauthorized` — missing, expired, or invalid token.
+- `404 Not Found` — authenticated email not found in any BookRover role table.
 
 ---
 
@@ -576,8 +629,7 @@ GET /group-leaders/{group_leader_id}/dashboard
 | 200 | OK | Successful GET, PUT |
 | 201 | Created | Successful POST (new resource created) |
 | 204 | No Content | Successful DELETE |
-| 400 | Bad Request | Business rule violation (e.g., overselling) |
-| 404 | Not Found | Resource does not exist |
+| 400 | Bad Request | Business rule violation (e.g., overselling) || 401 | Unauthorized | Missing or invalid Bearer token || 404 | Not Found | Resource does not exist |
 | 409 | Conflict | Duplicate or dependency conflict |
 | 422 | Unprocessable Entity | Request body validation failure |
 | 500 | Internal Server Error | Unexpected server error |

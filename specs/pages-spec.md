@@ -30,15 +30,23 @@
 **Route**: `/login`  
 **Access**: All users
 
-### Layout
-- App logo + name "BookRover" centered at top.
-- Subtitle: "Book Selling Made Simple"
-- "Sign in with Google" button (large, full-width, mobile-friendly).
-- Note: Authentication deferred to rollout phase. For development, show a role selector (Admin / Group Leader / Seller) to simulate login.
+### Layout — Step 1: Email Entry
+- App logo + name “BookRover” centered at top.
+- Subtitle: “Book Selling Made Simple”
+- Email address input field (full-width, mobile-friendly).
+- “Continue” button (full-width, prominent).
 
-### Development Placeholder (pre-auth)
-- Radio buttons: `[ ] Admin  [ ] Group Leader  [ ] Seller`
-- "Continue" button → routes to the appropriate page.
+### Layout — Step 2: OTP Verification (production only)
+- Displayed after a successful email submission when `VITE_AUTH_MODE=cognito`.
+- Heading: “Check your email”
+- Sub-text: “We sent a sign-in code to {email}. It expires in 3 minutes.”
+- 6-digit OTP code input field.
+- “Verify” button.
+- “Back” link to return to Step 1.
+
+### Authentication Flow
+- **Production** (`VITE_AUTH_MODE=cognito`): submitting the email triggers an AWS Cognito `USER_AUTH` challenge (email OTP); the user receives a one-time code by email; entering the code exchanges it for Cognito JWT tokens stored in `localStorage`.
+- **Development** (`VITE_AUTH_MODE=mock`): submitting the email immediately issues a lightweight dev token; the OTP step is skipped entirely. The backend resolves the email to a BookRover profile and returns the user’s role.
 
 ---
 
@@ -56,7 +64,7 @@ Seller enters their details and links themselves to a group leader + bookstore.
 |-------|------|-------|
 | First Name | Text input | Required. Max 50 chars. |
 | Last Name | Text input | Required. Max 50 chars. |
-| Email | Text input (email) | Required. Pre-filled from Google login in Phase 6. |
+| Email | Text input (email) | Required. Pre-filled from sign-in (Cognito email). |
 | Group Leader + Bookstore | Dropdown | Required. Options fetched from `GET /group-leaders`. Display format: `"Ravi Kumar — Sri Lakshmi Books"`. Each option maps to `group_leader_id` + `bookstore_id`. |
 
 ### Actions
@@ -331,7 +339,7 @@ CRUD management for Group Leaders and BookStores.
 | Field | Type | Notes |
 |-------|------|-------|
 | Name | Text input | Required. Max 100 chars. |
-| Email | Text input (email) | Required. Gmail only. |
+| Email | Text input (email) | Required. |
 | Bookstores | Multi-select checkboxes | Required. At least 1. List of all bookstores. |
 
 - **Save** → calls `POST /admin/group-leaders`.

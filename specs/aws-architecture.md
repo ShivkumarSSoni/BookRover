@@ -39,7 +39,7 @@ BookRover is a **fully serverless, AWS-native** application. There is no server 
 Supporting Services:
   ┌──────────────────┐   ┌──────────────────┐   ┌──────────────────┐
   │  AWS CloudWatch  │   │    AWS IAM        │   │  AWS Cognito     │
-  │  (Logs/Metrics)  │   │ (Roles/Policies)  │   │ (Auth - deferred)│
+  │  (Logs/Metrics)  │   │ (Roles/Policies)  │   │ (Email OTP Auth) │
   └──────────────────┘   └──────────────────┘   └──────────────────┘
   ┌──────────────────┐   ┌──────────────────┐
   │  AWS ACM         │   │  AWS Route 53    │
@@ -95,7 +95,7 @@ Supporting Services:
 - Stage: `dev` and `prod` as separate stages (or separate deployments).
 - **CORS**: configured at API Gateway to allow the CloudFront domain.
 - Throttling: default 10,000 requests/second (sufficient for friend-group scale).
-- No API keys required (auth is handled by Cognito in Phase 6).
+- No API keys required — token validation is handled in the Lambda (backend) for the `/auth/me` endpoint; full data endpoint auth enforcement is a pending security item.
 
 **Cost**: $1.00/million API calls. At small usage = effectively $0.
 
@@ -114,6 +114,8 @@ Supporting Services:
   - `APP_ENV` = `dev` or `prod`
   - `DYNAMODB_REGION` = `ap-south-1` (Mumbai — closest to India)
   - `TABLE_PREFIX` = `bookrover`
+  - `COGNITO_USER_POOL_ID` = User Pool ID from AWS Cognito (see Step 5 below / operator guide Step 4)
+  - `COGNITO_REGION` = `ap-south-1`
 - **Execution role**: custom IAM role with only DynamoDB CRUD on BookRover tables.
 - Layers: dependencies (boto3 pre-installed in Lambda; only app-specific packages in layer).
 - Deployment package: zip of `backend/` folder.
@@ -140,17 +142,21 @@ Supporting Services:
 
 ---
 
-### 6. AWS Cognito (Deferred — Phase 6)
+### 6. AWS Cognito (Email OTP)
 
-**Purpose**: Manages user authentication via Google/Gmail OAuth federation.
+**Purpose**: Manages user authentication via email-based One-Time Password (OTP).
 
-**Configuration** (when implemented):
-- User Pool: `bookrover-users-<env>`
-- Identity Provider: Google (OAuth 2.0)
-- App client: configured for the React frontend (Cognito Hosted UI or custom login page)
-- JWT tokens: used to authorize API Gateway requests
-- User groups: `admin`, `group-leader`, `seller` — mapped to app roles
-- API Gateway: configured with Cognito authorizer — validates JWT on every request
+**Configuration**:
+- User Pool: `bookrover-users-<env>` — email-only sign-in; no MFA; Cognito as email sender (SES optional for production scale)
+- Authentication flow: `ALLOW_USER_AUTH` + `ALLOW_REFRESH_TOKEN_AUTH` enabled on the app client; no Cognito Hosted UI — custom React two-step login page
+- JWT tokens: Cognito ID token (RS256) sent by the React frontend as `Authorization: Bearer <token>`; the backend `CognitoJWTVerifier` validates the RS256 signature, issuer URL, and `email` claim on every `/auth/me` request in production
+- User groups: `admin`, `group-leader`, `seller` — mapped to app roles; group membership returned in the ID token `cognito:groups` claim
+- API Gateway: **no** Cognito authorizer — token validation is done inside the Lambda for the `/auth/me` endpoint; enforcement on data endpoints is a pending security item
+
+**Backend integration**:
+- `COGNITO_USER_POOL_ID` and `COGNITO_REGION` are set as Lambda environment variables
+- `CognitoJWTVerifier` (`bookrover/utils/cognito_jwt_verifier.py`) fetches and caches JWKS from the Cognito public key endpoint; called on every `/auth/me` request in production
+- In development (`APP_ENV=dev`), the backend accepts a lightweight base64url dev token instead, bypassing Cognito entirely
 
 **Cost**: First 50,000 MAU **FREE**. = $0 for this app.
 
@@ -252,12 +258,15 @@ Step 1:  IAM — Create Lambda execution role + policies
 Step 2:  DynamoDB — Create all 7 tables + GSIs
 Step 3:  Lambda — Create function, upload code, configure env vars + role
 Step 4:  API Gateway — Create HTTP API, Lambda integration, CORS config
-Step 5:  S3 — Create frontend bucket, block public access
-Step 6:  ACM — Request SSL certificate (us-east-1), validate via DNS
-Step 7:  CloudFront — Create distribution (S3 origin + API Gateway origin), attach cert
-Step 8:  Route 53 — Create A record pointing to CloudFront (optional)
-Step 9:  Deploy React build to S3
-Step 10: Test end-to-end via CloudFront URL
+Step 5:  Cognito — Create User Pool (email-only), configure app client
+                   (ALLOW_USER_AUTH + ALLOW_REFRESH_TOKEN_AUTH), note
+                   User Pool ID → add to Lambda env vars + frontend build
+Step 6:  S3 — Create frontend bucket, block public access
+Step 7:  ACM — Request SSL certificate (us-east-1), validate via DNS
+Step 8:  CloudFront — Create distribution (S3 origin + API Gateway origin), attach cert
+Step 9:  Route 53 — Create A record pointing to CloudFront (optional)
+Step 10: Deploy React build to S3
+Step 11: Test end-to-end via CloudFront URL
 ```
 
 Detailed Console steps for each will be documented in `/docs/aws-setup-guide.md` (created during Phase 4).
