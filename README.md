@@ -31,7 +31,7 @@ BookRover/
 | Backend | Python 3.12, FastAPI, Mangum |
 | Database | AWS DynamoDB |
 | Hosting | AWS Lambda + API Gateway + S3 + CloudFront |
-| Auth | AWS Cognito + Google OAuth (Phase 6) |
+| Auth | AWS Cognito Email OTP |
 | IaC | Terraform (Phase 7) |
 
 ## Development Phases
@@ -41,7 +41,7 @@ BookRover/
 3. ⬜ Frontend: React + mobile-first UI
 4. ⬜ AWS Console manual setup
 5. ⬜ End-to-end testing on AWS
-6. ⬜ Gmail authentication (Cognito)
+6. ✅ Cognito Email OTP authentication (frontend + backend + operator docs)
 7. ⬜ Terraform IaC
 
 ## Estimated AWS Cost
