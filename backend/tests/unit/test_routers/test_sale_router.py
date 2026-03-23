@@ -262,3 +262,42 @@ def test_create_sale_returns_403_for_wrong_seller_id(client, mock_service):
     """POST sales must return 403 when the seller_id path param belongs to another seller."""
     response = client.post("/sellers/sel-DIFFERENT/sales", json=CREATE_SALE_PAYLOAD)
     assert response.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# buyer_country_code validation (E.164 prefix pattern: ^\+\d{1,3}$)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("invalid_code", [
+    "091",       # missing leading +
+    "+9 1",      # space inside
+    "++91",      # double +
+    "+",         # + with no digits
+    "+1234",     # too many digits (> 3)
+    "91",        # no + prefix
+    "",          # empty
+])
+def test_create_sale_returns_422_for_invalid_country_code(client, mock_service, invalid_code):
+    """POST /sellers/{id}/sales must return 422 for buyer_country_code not matching ^\\+\\d{1,3}$."""
+    payload = {**CREATE_SALE_PAYLOAD, "buyer_country_code": invalid_code}
+
+    response = client.post("/sellers/sel-001/sales", json=payload)
+
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize("valid_code", [
+    "+91",   # India
+    "+1",    # USA/Canada
+    "+44",   # UK
+    "+971",  # UAE (3-digit)
+])
+def test_create_sale_accepts_valid_country_code(client, mock_service, valid_code):
+    """POST /sellers/{id}/sales must accept buyer_country_code values matching ^\\+\\d{1,3}$."""
+    mock_service.create_sale.return_value = SALE_RESPONSE
+    payload = {**CREATE_SALE_PAYLOAD, "buyer_country_code": valid_code}
+
+    response = client.post("/sellers/sel-001/sales", json=payload)
+
+    assert response.status_code == 201

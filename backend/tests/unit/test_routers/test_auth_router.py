@@ -278,3 +278,55 @@ def test_get_me_prod_does_not_call_dev_token_decoder(mock_service):
     # The verifier must have been called — not bypassed by the dev decoder.
     mock_verifier.verify.assert_called_once_with(dev_token)
 
+
+# ---------------------------------------------------------------------------
+# get_cognito_verifier — client_id wiring
+# ---------------------------------------------------------------------------
+
+
+def test_get_cognito_verifier_passes_client_id_from_settings():
+    """get_cognito_verifier() must pass settings.cognito_client_id to CognitoJWTVerifier.
+
+    This ensures the 'aud' claim is validated in production so tokens issued
+    for a different Cognito app client are rejected.
+    """
+    from bookrover.config import Settings
+    from bookrover.dependencies import get_settings
+    from bookrover.routers.auth import get_cognito_verifier
+
+    client_id = "my-app-client-id-12345"
+    settings_with_client_id = Settings(
+        app_env="prod",
+        cognito_user_pool_id="ap-south-1_TestPool",
+        cognito_region="ap-south-1",
+        cognito_client_id=client_id,
+    )
+
+    # Call the dependency function directly (bypassing FastAPI DI) with the
+    # settings object that has a non-empty client_id.
+    verifier = get_cognito_verifier(settings=settings_with_client_id)
+
+    # The internal _client_id attribute must match what was passed in settings.
+    assert verifier._client_id == client_id
+
+
+def test_get_cognito_verifier_uses_empty_client_id_by_default():
+    """get_cognito_verifier() must leave client_id empty when COGNITO_CLIENT_ID is not set.
+
+    This documents the current behaviour for dev/non-prod environments where
+    audience validation is intentionally skipped.
+    """
+    from bookrover.config import Settings
+    from bookrover.routers.auth import get_cognito_verifier
+
+    settings_no_client_id = Settings(
+        app_env="dev",
+        cognito_user_pool_id="",
+        cognito_region="ap-south-1",
+        # cognito_client_id defaults to ""
+    )
+
+    verifier = get_cognito_verifier(settings=settings_no_client_id)
+
+    assert verifier._client_id == ""
+

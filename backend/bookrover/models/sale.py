@@ -22,7 +22,11 @@ class SaleCreate(BaseModel):
     buyer_first_name: str = Field(..., min_length=1, max_length=50)
     buyer_last_name: str = Field(..., min_length=1, max_length=50)
     buyer_country_code: str = Field(
-        ..., min_length=2, max_length=5, description="E.164 country code, e.g. '+91'"
+        ...,
+        min_length=2,
+        max_length=5,
+        pattern=r"^\+\d{1,3}$",
+        description="E.164 country dialling prefix — e.g. '+91', '+1', '+44'",
     )
     buyer_phone: str = Field(
         ..., min_length=5, max_length=15, pattern=r"^\d+$",

@@ -15,10 +15,10 @@ class BookCreate(BaseModel):
 
     book_name: str = Field(..., min_length=1, max_length=200, description="Title of the book")
     language: str = Field(..., min_length=1, max_length=50, description="Language of the book")
-    initial_count: int = Field(..., ge=1, description="Number of books collected from bookstore")
-    cost_per_book: Decimal = Field(..., gt=Decimal("0"), description="Cost price per book in ₹")
+    initial_count: int = Field(..., ge=1, le=10_000, description="Number of books collected from bookstore")
+    cost_per_book: Decimal = Field(..., gt=Decimal("0"), le=Decimal("100000"), description="Cost price per book in ₹")
     selling_price: Decimal = Field(
-        ..., gt=Decimal("0"), description="Selling price per book in ₹ — must exceed cost"
+        ..., gt=Decimal("0"), le=Decimal("100000"), description="Selling price per book in ₹ — must exceed cost"
     )
 
     @model_validator(mode="after")
@@ -38,8 +38,8 @@ class BookUpdate(BaseModel):
 
     book_name: Optional[str] = Field(None, min_length=1, max_length=200)
     language: Optional[str] = Field(None, min_length=1, max_length=50)
-    cost_per_book: Optional[Decimal] = Field(None, gt=Decimal("0"))
-    selling_price: Optional[Decimal] = Field(None, gt=Decimal("0"))
+    cost_per_book: Optional[Decimal] = Field(None, gt=Decimal("0"), le=Decimal("100000"))
+    selling_price: Optional[Decimal] = Field(None, gt=Decimal("0"), le=Decimal("100000"))
 
 
 class BookResponse(BaseModel):

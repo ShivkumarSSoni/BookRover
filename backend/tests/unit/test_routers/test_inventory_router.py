@@ -268,3 +268,65 @@ def test_remove_book_returns_403_for_wrong_seller_id(client, mock_service):
     """DELETE inventory must return 403 when the seller_id path param belongs to another seller."""
     response = client.delete("/sellers/sel-DIFFERENT/inventory/book-001")
     assert response.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Decimal upper bound validation
+# ---------------------------------------------------------------------------
+
+
+def test_add_book_returns_422_when_initial_count_exceeds_maximum(client, mock_service):
+    """POST /sellers/{id}/inventory must return 422 if initial_count > 10 000."""
+    payload = {**ADD_BOOK_PAYLOAD, "initial_count": 10_001}
+
+    response = client.post("/sellers/sel-001/inventory", json=payload)
+
+    assert response.status_code == 422
+
+
+def test_add_book_returns_422_when_cost_per_book_exceeds_maximum(client, mock_service):
+    """POST /sellers/{id}/inventory must return 422 if cost_per_book > 100 000."""
+    payload = {**ADD_BOOK_PAYLOAD, "cost_per_book": 100_001, "selling_price": 100_002}
+
+    response = client.post("/sellers/sel-001/inventory", json=payload)
+
+    assert response.status_code == 422
+
+
+def test_add_book_returns_422_when_selling_price_exceeds_maximum(client, mock_service):
+    """POST /sellers/{id}/inventory must return 422 if selling_price > 100 000."""
+    payload = {**ADD_BOOK_PAYLOAD, "selling_price": 100_001}
+
+    response = client.post("/sellers/sel-001/inventory", json=payload)
+
+    assert response.status_code == 422
+
+
+def test_add_book_accepts_values_at_upper_boundary(client, mock_service):
+    """POST /sellers/{id}/inventory must accept cost_per_book=99999 and selling_price=100000."""
+    mock_service.add_book.return_value = BOOK_RESPONSE
+    payload = {**ADD_BOOK_PAYLOAD, "cost_per_book": 99_999, "selling_price": 100_000}
+
+    response = client.post("/sellers/sel-001/inventory", json=payload)
+
+    assert response.status_code == 201
+
+
+def test_update_book_returns_422_when_cost_per_book_exceeds_maximum(client, mock_service):
+    """PUT /sellers/{id}/inventory/{book_id} must return 422 if cost_per_book > 100 000."""
+    response = client.put(
+        "/sellers/sel-001/inventory/book-001",
+        json={"cost_per_book": 100_001},
+    )
+
+    assert response.status_code == 422
+
+
+def test_update_book_returns_422_when_selling_price_exceeds_maximum(client, mock_service):
+    """PUT /sellers/{id}/inventory/{book_id} must return 422 if selling_price > 100 000."""
+    response = client.put(
+        "/sellers/sel-001/inventory/book-001",
+        json={"selling_price": 100_001},
+    )
+
+    assert response.status_code == 422

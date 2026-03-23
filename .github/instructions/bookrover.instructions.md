@@ -267,12 +267,63 @@ frontend/
 
 ## Security Requirements
 
-- **Input validation**: all string fields have `min_length`, `max_length` constraints in Pydantic models.
-- **CORS**: restrict to known frontend origin only — not `"*"` in production.
-- **No secrets in code or version control**: `.env` files in `.gitignore`; secrets in AWS Secrets Manager in prod.
+### Authentication & Token Validation
+- **All data endpoints require authentication** — every router (admin, sellers, inventory, sales, returns, dashboard) injects `get_current_user` as a FastAPI dependency. Unauthenticated requests receive HTTP 401. The only public endpoints are `GET /lookup/group-leaders` and `GET /health`.
+- **Token validation is environment-aware** — in `prod` (`APP_ENV=prod`), tokens are Cognito ID tokens verified via RS256 + JWKS (`CognitoJWTVerifier`). In `dev`/`test`, a lightweight `base64url(email)` token is accepted. The dev path must never be reachable in production.
+- **Cognito audience (`aud`) must be validated** — `CognitoJWTVerifier` must be initialised with `client_id=settings.cognito_client_id` so that `verify_aud=True` is applied. Never leave `client_id` empty in production; tokens from a different Cognito app client will be rejected.
+- **Dev mock-token endpoint** (`POST /dev/mock-token`) returns HTTP 404 when `APP_ENV=prod`. It must never log the email in plaintext — use a hashed or redacted representation in debug logs.
+
+### Role-Based Access Control (RBAC)
+- **Three role guards** are defined in `routers/auth.py` and must be used for every protected endpoint:
+  - `require_admin` — raises 403 if the caller does not have the `"admin"` role.
+  - `require_seller` — raises 403 if the caller does not have the `"seller"` role.
+  - `require_group_leader` — raises 403 if the caller does not have the `"group_leader"` role.
+- **Role assignment map** (non-negotiable):
+  - Admin endpoints (`/admin/**`) → `require_admin`
+  - Seller inventory, sales, returns endpoints → `require_seller`
+  - Dashboard endpoint (`/group-leaders/{id}/dashboard`) → `require_group_leader`
+  - Seller registration (`POST /sellers`) → `get_current_user` (any authenticated user); email ownership enforced below.
+  - Seller profile (`GET /sellers/{seller_id}`) → `get_current_user`; allow if admin OR own profile.
+
+### Ownership Scoping
+- **Sellers**: every endpoint that accepts `seller_id` as a path parameter must verify `current_user.seller_id == seller_id` — raise HTTP 403 if they differ. This prevents a seller viewing or modifying another seller's data.
+- **Group leaders**: the dashboard endpoint must verify `current_user.group_leader_id == group_leader_id` — raise HTTP 403 if they differ.
+- **Admins** are exempt from ownership checks — they may access all resources.
+- **Seller registration** (`POST /sellers`): the email in the payload must match `current_user.email` (case-insensitive) — raise HTTP 403 if they differ.
+
+### Input Validation
+- **All string fields** must have `min_length` and `max_length` constraints in Pydantic models — no unbounded text fields.
+- **Phone/country code**: `buyer_phone` must be digits-only (`pattern=r"^\d+$"`). `buyer_country_code` must match `pattern=r"^\+\d{1,3}$"` (E.164 prefix — `+91`, `+1`, etc.).
+- **Decimal price/count fields**: all `cost_per_book`, `selling_price`, and similar monetary Decimal fields must have an upper bound (`le=Decimal("100000")`). All `initial_count` integer fields must have an upper bound (`le=10000`). This prevents analytics overflow and unreasonable data entry.
+- **Cross-field rules**: `selling_price` must exceed `cost_per_book` — enforced via Pydantic `model_validator`.
+- **Email fields**: use Pydantic `EmailStr` — validated at the boundary.
+
+### CORS
+- **Restrict to known origins only — never `"*"` in production.** The `CORS_ALLOWED_ORIGINS` environment variable must be set to the CloudFront distribution URL in prod (e.g. `https://d1234example.cloudfront.net`).
+- **Default (dev)**: `cors_allowed_origins = ["http://localhost:5173"]`.
+- **`allow_credentials=True`** is permitted only when origins are explicitly restricted — never combine with wildcard origins (browser blocks it, but the config is still wrong).
+- **`allow_methods`**: restrict to `["GET", "POST", "PUT", "DELETE", "OPTIONS"]`.
+- **`allow_headers`**: restrict to `["Authorization", "Content-Type"]`.
+
+### Request Body Size
+- A `BodySizeLimitMiddleware` must be applied in `main.py` to reject requests whose `Content-Length` header exceeds 500 KB (512 000 bytes) with HTTP 413 before they reach route handlers.
+- API Gateway's hard 10 MB limit provides a second layer of protection.
+
+### Rate Limiting
+- **Application-layer rate limiting is not suitable for Lambda** (each container is independent and stateless). The primary rate limiting mechanism is **API Gateway Usage Plans + throttling settings** (burst limit, rate limit per stage).
+- For the most sensitive endpoints (`POST /dev/mock-token`, `GET /me`) set aggressive per-IP throttling at the API Gateway stage level.
+- For `GET /lookup/group-leaders` (public, unauthenticated), set a conservative throttle (e.g. 10 req/s per IP) via API Gateway or AWS WAF.
+
+### Error Messages
+- Error responses always follow `{"detail": "human-readable message"}` — never expose stack traces, table names, AWS resource ARNs, or internal exception details.
+- `boto3` `ClientError` must never propagate beyond the repository layer — catch and re-raise as domain exceptions in `exceptions/`.
+- No FastAPI `500` responses with traceback bodies — add a global exception handler that logs the error server-side and returns a generic `{"detail": "An unexpected error occurred."}`.
+
+### Other Security Requirements
 - **HTTPS only**: enforced at CloudFront — HTTP requests redirected to HTTPS.
 - **IAM least privilege**: Lambda execution role has only DynamoDB CRUD on specific BookRover tables.
 - **SQL/NoSQL injection**: use `ExpressionAttributeValues` in all DynamoDB calls — never string-format expressions.
+- **No secrets in code or version control**: `.env` files in `.gitignore`; secrets in AWS Secrets Manager in prod.
 - **XSS**: React escapes output by default — never use `dangerouslySetInnerHTML`.
 
 ---

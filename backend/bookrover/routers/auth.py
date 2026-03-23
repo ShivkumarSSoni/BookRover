@@ -86,6 +86,7 @@ def get_cognito_verifier(
     return CognitoJWTVerifier(
         user_pool_id=settings.cognito_user_pool_id,
         region=settings.cognito_region,
+        client_id=settings.cognito_client_id,
     )
 
 
@@ -316,5 +317,5 @@ async def mock_token(
         )
 
     token = _encode_dev_token(str(payload.email))
-    logger.debug("mock_token issued", extra={"email": str(payload.email)})
+    logger.debug("mock_token issued")  # email omitted — never log PII
     return MockTokenResponse(token=token, email=str(payload.email))

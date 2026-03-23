@@ -7,11 +7,36 @@ and applies middleware. The Mangum handler wraps the app for AWS Lambda.
 from contextlib import asynccontextmanager
 
 import boto3
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from bookrover.config import Settings
+
+# Maximum allowed request body size (500 KB). Requests exceeding this are
+# rejected with HTTP 413 before reaching any route handler.
+_MAX_BODY_BYTES = 512_000
+
+
+class BodySizeLimitMiddleware(BaseHTTPMiddleware):
+    """Reject requests whose Content-Length header exceeds _MAX_BODY_BYTES.
+
+    This provides a first-line defence against oversized payloads that could
+    exhaust Lambda memory. API Gateway's hard 10 MB limit acts as a second
+    layer. Requests without a Content-Length header are passed through
+    (API Gateway enforces the absolute cap in production).
+    """
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > _MAX_BODY_BYTES:
+            return Response(
+                content='{"detail":"Request body too large."}',
+                status_code=413,
+                media_type="application/json",
+            )
+        return await call_next(request)
 
 
 def _create_local_tables(settings: Settings) -> None:
@@ -139,12 +164,13 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    app.add_middleware(BodySizeLimitMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_allowed_origins,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type"],
     )
 
     # Routers are registered here as features are built:
