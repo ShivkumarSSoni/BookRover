@@ -60,7 +60,6 @@ SELLER_PAYLOAD = SellerCreate(
     email="priya@gmail.com",
     group_leader_id="gl-001",
     bookstore_id="bs-001",
-    verification_code="123456",
 )
 
 SELLER_ITEM = {

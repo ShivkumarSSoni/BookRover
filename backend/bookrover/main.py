@@ -137,14 +137,6 @@ def _create_local_tables(settings: Settings) -> None:
                 },
             ],
         },
-        {
-            "TableName": settings.get_table_name("email-verifications"),
-            "KeySchema": [{"AttributeName": "email", "KeyType": "HASH"}],
-            "AttributeDefinitions": [
-                {"AttributeName": "email", "AttributeType": "S"},
-            ],
-            "BillingMode": "PAY_PER_REQUEST",
-        },
     ]
 
     for definition in table_definitions:

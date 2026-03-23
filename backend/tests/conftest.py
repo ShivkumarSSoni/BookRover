@@ -137,14 +137,6 @@ _TABLE_DEFINITIONS: list[dict] = [
         ],
         "BillingMode": "PAY_PER_REQUEST",
     },
-    {
-        "TableName": "bookrover-email-verifications-test",
-        "KeySchema": [{"AttributeName": "email", "KeyType": "HASH"}],
-        "AttributeDefinitions": [
-            {"AttributeName": "email", "AttributeType": "S"},
-        ],
-        "BillingMode": "PAY_PER_REQUEST",
-    },
 ]
 
 

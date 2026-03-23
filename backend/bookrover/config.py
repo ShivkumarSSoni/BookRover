@@ -22,8 +22,6 @@ class Settings(BaseSettings):
         cognito_region: AWS region of the Cognito User Pool (prod only).
         cognito_client_id: Cognito App Client ID for 'aud' claim validation (prod only).
             Set via COGNITO_CLIENT_ID env var — leave empty to skip audience validation.
-        ses_sender_email: SES verified sender address for email verification codes (prod only).
-            Must be verified in the SES console before going live.
     """
 
     app_env: str = "dev"
@@ -39,9 +37,6 @@ class Settings(BaseSettings):
     # Cognito App Client ID — used to validate the 'aud' claim in ID tokens.
     # Must be set in production or tokens from other Cognito apps will be accepted.
     cognito_client_id: str = ""
-    # SES verified sender address — used to send email verification codes in prod.
-    # Must be a verified identity in the SES console (ap-south-1) before going live.
-    ses_sender_email: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
