@@ -264,6 +264,72 @@ Before wiring up API Gateway, do a quick smoke test.
     This is your `VITE_API_BASE_URL`.
 12. Verify end-to-end: open `https://YOUR_INVOKE_URL/docs` in a browser. You should see the FastAPI Swagger UI.
 
+#### Configure stage-level throttling
+
+HTTP API throttling is set on the `$default` stage and applies to every route. It is a **built-in feature with no extra cost** on top of normal API Gateway pricing.
+
+> **Why not Usage Plans?** Usage Plans and API Keys are a **REST API** feature. BookRover uses an HTTP API, which does not support them. Stage-level throttling is the equivalent mechanism for HTTP API.
+
+1. In the API Gateway console, open `bookrover-http-api` → **Stages** in the left sidebar → click `$default`.
+2. Click **Edit**.
+3. Under **Default route throttle**, set:
+   | Setting | Recommended value | Meaning |
+   |---------|-------------------|---------|
+   | **Rate** | `50` | Maximum sustained requests per second across all callers |
+   | **Burst** | `100` | Maximum concurrent in-flight requests at any instant |
+4. Click **Save changes**.
+
+API Gateway will now return `HTTP 429 Too Many Requests` automatically when either limit is exceeded — no application code change needed.
+
+> **Sizing guidance:** 50 req/s is generous for a small multi-seller app. Raise it only if CloudWatch metrics show sustained 429s from legitimate traffic. Do not set burst below rate.
+
+---
+
+#### 3f — AWS WAF (Optional — recommended before production)
+
+AWS WAF is an independent web application firewall that sits in front of API Gateway. It provides protection beyond simple rate limiting: managed rulesets block known exploit patterns (SQL injection, XSS, bad bots) even before a request reaches Lambda.
+
+**Why it is optional here:**
+- Stage-level throttling (step 3e above) already covers gaps 2 & 9 for a small-scale deployment.
+- WAF adds ~$5–10/month minimum even at zero traffic (Web ACL fee + per-rule fees).
+- For a portfolio or demo deployment the cost is rarely justified; for a real production app with public traffic it is strongly recommended.
+
+**When to add WAF:**
+- Before going live with real seller/buyer data.
+- When `/lookup/group-leaders` or `/lookup/bookstores` are called from untrusted clients at scale.
+- When a penetration test or compliance requirement mandates it.
+
+**Setup steps (when ready):**
+
+1. Open the [AWS WAF console](https://console.aws.amazon.com/wafv2) — confirm the region is `ap-south-1`.
+2. Click **Create web ACL**.
+3. Fill in:
+   - **Resource type:** Regional resources
+   - **Region:** Asia Pacific (Mumbai) — `ap-south-1`
+   - **Name:** `bookrover-waf-prod`
+4. Under **Associated AWS resources**, click **Add AWS resources** → select your `bookrover-http-api` API Gateway stage (`$default`). Click **Add**.
+5. Click **Next** → **Add rules** → **Add managed rule groups**. Enable:
+   - **AWS managed rules — Core rule set** (`AWSManagedRulesCommonRuleSet`) — blocks OWASP Top 10 patterns.
+   - **AWS managed rules — Known bad inputs** (`AWSManagedRulesKnownBadInputsRuleSet`) — blocks exploit probes.
+6. Click **Add rules** → **Add my own rules** → **Rate-based rule**:
+   - **Rule name:** `global-rate-limit`
+   - **Rate limit:** `300` (requests per 5 minutes per IP — adjust to your traffic profile)
+   - **Scope of inspection:** All requests (default)
+   - **Action:** Block
+7. Set **Default action** to **Allow**.
+8. Click through **Next** → **Next** → **Create web ACL**.
+
+**Approximate monthly cost at low traffic:**
+
+| Item | Cost |
+|------|------|
+| Web ACL | $5.00/month |
+| Rules (2 managed + 1 rate-based) | ~$3.00/month |
+| Requests (first 10M) | $0.60 per million |
+| **Minimum** | **~$8/month** |
+
+> WAF costs are in addition to API Gateway request charges. The WAF Web ACL is associated directly with the API Gateway stage — no CloudFront distribution is required unless you want global edge protection.
+
 ---
 
 ### Step 4 — Provision Cognito User Pool (Authentication)
