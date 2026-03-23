@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 from bookrover.exceptions.not_found import BookStoreNotFoundError, GroupLeaderNotFoundError
 from bookrover.interfaces.abstract_dashboard_service import AbstractDashboardService
 from bookrover.main import create_app
+from bookrover.models.auth import MeResponse
 from bookrover.models.dashboard import (
     DashboardBookstore,
     DashboardGroupLeader,
@@ -20,11 +21,15 @@ from bookrover.models.dashboard import (
     DashboardSellerRow,
     DashboardTotals,
 )
+from bookrover.routers.auth import get_current_user
 from bookrover.routers.dashboard import get_dashboard_service
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
+
+GL_ME = MeResponse(email="gl@example.com", roles=["group_leader"], group_leader_id="gl-001")
 
 
 @pytest.fixture
@@ -35,9 +40,10 @@ def mock_service():
 
 @pytest.fixture
 def client(mock_service):
-    """TestClient with the mock service injected via dependency override."""
+    """TestClient with mock service and group_leader gl-001 injected."""
     app = create_app()
     app.dependency_overrides[get_dashboard_service] = lambda: mock_service
+    app.dependency_overrides[get_current_user] = lambda: GL_ME
     return TestClient(app)
 
 
@@ -167,3 +173,33 @@ def test_get_dashboard_returns_empty_sellers_list(client, mock_service):
     data = response.json()
     assert data["sellers"] == []
     assert data["totals"]["total_books_sold"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Auth enforcement tests
+# ---------------------------------------------------------------------------
+
+
+def test_dashboard_endpoint_returns_401_without_auth():
+    """Dashboard endpoint must return 401 when no Authorization header is present."""
+    app = create_app()
+    c = TestClient(app)
+    response = c.get("/group-leaders/gl-001/dashboard?bookstore_id=bs-001")
+    assert response.status_code == 401
+
+
+def test_dashboard_endpoint_returns_403_for_seller_role():
+    """Dashboard endpoint must return 403 for a seller caller (not a group leader)."""
+    seller_me = MeResponse(email="s@e.com", roles=["seller"], seller_id="sel-001")
+    app = create_app()
+    app.dependency_overrides[get_current_user] = lambda: seller_me
+    c = TestClient(app)
+    response = c.get("/group-leaders/gl-001/dashboard?bookstore_id=bs-001")
+    assert response.status_code == 403
+
+
+def test_dashboard_endpoint_returns_403_for_different_group_leader_id(client, mock_service):
+    """Dashboard endpoint must return 403 when the group_leader_id path param belongs to a different GL."""
+    # client has GL_ME with group_leader_id="gl-001"
+    response = client.get("/group-leaders/gl-DIFFERENT/dashboard?bookstore_id=bs-001")
+    assert response.status_code == 403

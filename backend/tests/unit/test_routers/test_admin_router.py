@@ -17,13 +17,19 @@ from bookrover.exceptions.not_found import (
 )
 from bookrover.interfaces.abstract_admin_service import AbstractAdminService
 from bookrover.main import create_app
+from bookrover.models.auth import MeResponse
 from bookrover.models.bookstore import BookStoreResponse
 from bookrover.models.group_leader import GroupLeaderResponse
 from bookrover.routers.admin import get_admin_service
+from bookrover.routers.auth import get_current_user
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
+
+ADMIN_ME = MeResponse(email="admin@example.com", roles=["admin"])
+SELLER_ME = MeResponse(email="seller@example.com", roles=["seller"], seller_id="sel-001")
 
 
 @pytest.fixture
@@ -34,9 +40,10 @@ def mock_service():
 
 @pytest.fixture
 def client(mock_service):
-    """TestClient with the mock service injected via dependency override."""
+    """TestClient with the mock service and admin user injected."""
     app = create_app()
     app.dependency_overrides[get_admin_service] = lambda: mock_service
+    app.dependency_overrides[get_current_user] = lambda: ADMIN_ME
     return TestClient(app)
 
 
@@ -254,3 +261,35 @@ def test_delete_group_leader_returns_404_when_not_found(client, mock_service):
     response = client.delete("/admin/group-leaders/gl-999")
 
     assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Auth enforcement tests
+# ---------------------------------------------------------------------------
+
+
+def test_admin_endpoint_returns_401_without_auth():
+    """Admin endpoints must return 401 when no Authorization header is present."""
+    app = create_app()
+    c = TestClient(app)
+    response = c.get("/admin/bookstores")
+    assert response.status_code == 401
+
+
+def test_admin_endpoint_returns_403_for_seller_role():
+    """Admin endpoints must return 403 when the caller has the seller role (not admin)."""
+    app = create_app()
+    app.dependency_overrides[get_current_user] = lambda: SELLER_ME
+    c = TestClient(app)
+    response = c.get("/admin/bookstores")
+    assert response.status_code == 403
+
+
+def test_admin_endpoint_returns_403_for_group_leader_role():
+    """Admin endpoints must return 403 when the caller has the group_leader role (not admin)."""
+    gl_me = MeResponse(email="gl@example.com", roles=["group_leader"], group_leader_id="gl-001")
+    app = create_app()
+    app.dependency_overrides[get_current_user] = lambda: gl_me
+    c = TestClient(app)
+    response = c.post("/admin/bookstores", json=BOOKSTORE_PAYLOAD)
+    assert response.status_code == 403

@@ -143,32 +143,21 @@ def _extract_bearer_token(request: Request) -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# Endpoints
+# Shared auth dependency + role guards (used by all protected routers)
 # ---------------------------------------------------------------------------
 
 
-@router.get(
-    "/me",
-    response_model=MeResponse,
-    summary="Get current user identity",
-    description=(
-        "Decodes the Bearer token from the Authorization header, resolves the "
-        "caller's BookRover roles, and returns their identity. "
-        "In dev/test mode the token is base64url(email). "
-        "In production a Cognito ID token is verified via CognitoJWTVerifier."
-    ),
-)
-async def get_me(
+async def get_current_user(
     request: Request,
     settings: Settings = Depends(get_settings),
     auth_service: AbstractAuthService = Depends(get_auth_service),
     cognito_verifier: CognitoJWTVerifier = Depends(get_cognito_verifier),
 ) -> MeResponse:
-    """Resolve the caller's BookRover identity from their Bearer token.
+    """Validate the Bearer token and return the caller's BookRover identity.
 
-    In dev/test (APP_ENV != 'prod') the token is a base64url-encoded email
-    produced by POST /dev/mock-token.  In production the token is a Cognito
-    ID token which is cryptographically verified before the email is trusted.
+    This is the shared auth dependency injected into every protected endpoint.
+    In dev/test (APP_ENV != 'prod') the token is base64url(email).
+    In production the token is a Cognito ID token verified via CognitoJWTVerifier.
 
     Args:
         request: Incoming HTTP request (Authorization header is read here).
@@ -177,10 +166,10 @@ async def get_me(
         cognito_verifier: Injected CognitoJWTVerifier (used in prod only).
 
     Returns:
-        MeResponse with roles, seller_id, and group_leader_id.
+        MeResponse carrying the caller's roles, seller_id, and group_leader_id.
 
     Raises:
-        HTTPException 401: If no valid token is provided.
+        HTTPException 401: If the token is missing or invalid.
     """
     raw_token = _extract_bearer_token(request)
     if not raw_token:
@@ -207,6 +196,90 @@ async def get_me(
             )
 
     return auth_service.get_me(email)
+
+
+def require_admin(me: MeResponse = Depends(get_current_user)) -> MeResponse:
+    """Require the caller to hold the 'admin' role.
+
+    Args:
+        me: Resolved caller identity from get_current_user.
+
+    Returns:
+        MeResponse if the caller is an admin.
+
+    Raises:
+        HTTPException 403: If the caller does not have the admin role.
+    """
+    if "admin" not in me.roles:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden.")
+    return me
+
+
+def require_seller(me: MeResponse = Depends(get_current_user)) -> MeResponse:
+    """Require the caller to hold the 'seller' role.
+
+    Args:
+        me: Resolved caller identity from get_current_user.
+
+    Returns:
+        MeResponse if the caller is a seller.
+
+    Raises:
+        HTTPException 403: If the caller does not have the seller role.
+    """
+    if "seller" not in me.roles:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden.")
+    return me
+
+
+def require_group_leader(me: MeResponse = Depends(get_current_user)) -> MeResponse:
+    """Require the caller to hold the 'group_leader' role.
+
+    Args:
+        me: Resolved caller identity from get_current_user.
+
+    Returns:
+        MeResponse if the caller is a group leader.
+
+    Raises:
+        HTTPException 403: If the caller does not have the group_leader role.
+    """
+    if "group_leader" not in me.roles:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden.")
+    return me
+
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/me",
+    response_model=MeResponse,
+    summary="Get current user identity",
+    description=(
+        "Decodes the Bearer token from the Authorization header, resolves the "
+        "caller's BookRover roles, and returns their identity. "
+        "In dev/test mode the token is base64url(email). "
+        "In production a Cognito ID token is verified via CognitoJWTVerifier."
+    ),
+)
+async def get_me(me: MeResponse = Depends(get_current_user)) -> MeResponse:
+    """Return the caller's resolved BookRover identity.
+
+    Delegates all token validation and role resolution to get_current_user.
+
+    Args:
+        me: Resolved caller identity from get_current_user.
+
+    Returns:
+        MeResponse with roles, seller_id, and group_leader_id.
+
+    Raises:
+        HTTPException 401: If no valid token is provided.
+    """
+    return me
 
 
 @router.post(

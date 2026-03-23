@@ -21,10 +21,12 @@ from bookrover.exceptions.bad_request import InsufficientInventoryError
 from bookrover.exceptions.conflict import SellerPendingReturnError
 from bookrover.exceptions.not_found import BookNotFoundError, SaleNotFoundError, SellerNotFoundError
 from bookrover.interfaces.abstract_sale_service import AbstractSaleService
+from bookrover.models.auth import MeResponse
 from bookrover.models.sale import SaleCreate, SaleResponse
 from bookrover.repositories.inventory_repository import DynamoDBInventoryRepository
 from bookrover.repositories.sale_repository import DynamoDBSaleRepository
 from bookrover.repositories.seller_repository import DynamoDBSellerRepository
+from bookrover.routers.auth import require_seller
 from bookrover.services.sale_service import SaleService
 
 logger = logging.getLogger(__name__)
@@ -83,6 +85,7 @@ async def create_sale(
     seller_id: str,
     payload: SaleCreate,
     service: AbstractSaleService = Depends(get_sale_service),
+    current_user: MeResponse = Depends(require_seller),
 ) -> SaleResponse:
     """Record a new sale for a seller.
 
@@ -90,15 +93,19 @@ async def create_sale(
         seller_id: UUID of the seller from the path parameter.
         payload: Validated SaleCreate request body (buyer details + items).
         service: Injected SaleService.
+        current_user: Resolved seller identity.
 
     Returns:
         SaleResponse for the created sale.
 
     Raises:
+        HTTPException 403: If the caller is not the seller identified by seller_id.
         HTTPException 404: If seller or any book_id does not exist.
         HTTPException 400: If quantity_sold exceeds current_count for any book.
         HTTPException 409: If seller status is 'pending_return'.
     """
+    if current_user.seller_id != seller_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden.")
     try:
         return service.create_sale(seller_id, payload)
     except SellerNotFoundError as exc:
@@ -126,16 +133,23 @@ async def create_sale(
 async def list_sales(
     seller_id: str,
     service: AbstractSaleService = Depends(get_sale_service),
+    current_user: MeResponse = Depends(require_seller),
 ) -> List[SaleResponse]:
     """List all sales for a seller.
 
     Args:
         seller_id: UUID of the seller from the path parameter.
         service: Injected SaleService.
+        current_user: Resolved seller identity.
 
     Returns:
         List of SaleResponse objects (may be empty).
+
+    Raises:
+        HTTPException 403: If the caller is not the seller identified by seller_id.
     """
+    if current_user.seller_id != seller_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden.")
     return service.list_sales(seller_id)
 
 
@@ -153,6 +167,7 @@ async def get_sale(
     seller_id: str,
     sale_id: str,
     service: AbstractSaleService = Depends(get_sale_service),
+    current_user: MeResponse = Depends(require_seller),
 ) -> SaleResponse:
     """Retrieve a single sale by ID, scoped to the seller.
 
@@ -160,13 +175,17 @@ async def get_sale(
         seller_id: UUID of the seller from the path parameter.
         sale_id: UUID of the sale from the path parameter.
         service: Injected SaleService.
+        current_user: Resolved seller identity.
 
     Returns:
         SaleResponse for the matching sale.
 
     Raises:
+        HTTPException 403: If the caller is not the seller identified by seller_id.
         HTTPException 404: If sale not found or belongs to a different seller.
     """
+    if current_user.seller_id != seller_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden.")
     try:
         return service.get_sale(seller_id, sale_id)
     except SaleNotFoundError as exc:

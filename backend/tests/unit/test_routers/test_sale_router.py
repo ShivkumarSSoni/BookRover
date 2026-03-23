@@ -15,12 +15,17 @@ from bookrover.exceptions.conflict import SellerPendingReturnError
 from bookrover.exceptions.not_found import BookNotFoundError, SaleNotFoundError, SellerNotFoundError
 from bookrover.interfaces.abstract_sale_service import AbstractSaleService
 from bookrover.main import create_app
+from bookrover.models.auth import MeResponse
 from bookrover.models.sale import SaleItemResponse, SaleResponse
+from bookrover.routers.auth import get_current_user
 from bookrover.routers.sales import get_sale_service
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
+
+SELLER_ME = MeResponse(email="seller@example.com", roles=["seller"], seller_id="sel-001")
 
 
 @pytest.fixture
@@ -31,9 +36,10 @@ def mock_service():
 
 @pytest.fixture
 def client(mock_service):
-    """TestClient with the mock service injected via dependency override."""
+    """TestClient with mock service and seller sel-001 injected as current user."""
     app = create_app()
     app.dependency_overrides[get_sale_service] = lambda: mock_service
+    app.dependency_overrides[get_current_user] = lambda: SELLER_ME
     return TestClient(app)
 
 
@@ -94,12 +100,12 @@ def test_create_sale_returns_201_for_valid_input(client, mock_service):
 
 def test_create_sale_returns_404_for_unknown_seller(client, mock_service):
     """POST /sellers/{id}/sales should return 404 if seller not found."""
-    mock_service.create_sale.side_effect = SellerNotFoundError("unknown-seller")
+    mock_service.create_sale.side_effect = SellerNotFoundError("sel-001")
 
-    response = client.post("/sellers/unknown-seller/sales", json=CREATE_SALE_PAYLOAD)
+    response = client.post("/sellers/sel-001/sales", json=CREATE_SALE_PAYLOAD)
 
     assert response.status_code == 404
-    assert "unknown-seller" in response.json()["detail"]
+    assert "sel-001" in response.json()["detail"]
 
 
 def test_create_sale_returns_404_for_unknown_book(client, mock_service):
@@ -221,3 +227,38 @@ def test_get_sale_returns_404_for_missing_sale(client, mock_service):
 
     assert response.status_code == 404
     assert "no-sale" in response.json()["detail"]
+
+
+# ---------------------------------------------------------------------------
+# Auth enforcement tests
+# ---------------------------------------------------------------------------
+
+
+def test_sales_endpoint_returns_401_without_auth():
+    """Sales endpoints must return 401 when no Authorization header is present."""
+    app = create_app()
+    c = TestClient(app)
+    response = c.get("/sellers/sel-001/sales")
+    assert response.status_code == 401
+
+
+def test_sales_endpoint_returns_403_for_non_seller_role():
+    """Sales endpoints must return 403 for a GL or admin caller (not a seller)."""
+    gl_me = MeResponse(email="gl@example.com", roles=["group_leader"], group_leader_id="gl-001")
+    app = create_app()
+    app.dependency_overrides[get_current_user] = lambda: gl_me
+    c = TestClient(app)
+    response = c.get("/sellers/sel-001/sales")
+    assert response.status_code == 403
+
+
+def test_sales_endpoint_returns_403_for_wrong_seller_id(client, mock_service):
+    """Sales endpoints must return 403 when the seller_id path param belongs to another seller."""
+    response = client.get("/sellers/sel-DIFFERENT/sales")
+    assert response.status_code == 403
+
+
+def test_create_sale_returns_403_for_wrong_seller_id(client, mock_service):
+    """POST sales must return 403 when the seller_id path param belongs to another seller."""
+    response = client.post("/sellers/sel-DIFFERENT/sales", json=CREATE_SALE_PAYLOAD)
+    assert response.status_code == 403

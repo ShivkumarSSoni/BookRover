@@ -6,15 +6,24 @@ are wired together; only DynamoDB is replaced by moto's in-memory store.
 """
 
 import pytest
+from fastapi import Request
 from fastapi.testclient import TestClient
 
 from bookrover.main import create_app
+from bookrover.models.auth import MeResponse
 from bookrover.repositories.inventory_repository import DynamoDBInventoryRepository
 from bookrover.repositories.seller_repository import DynamoDBSellerRepository
+from bookrover.routers.auth import get_current_user
 from bookrover.routers.inventory import get_inventory_service
 from bookrover.services.inventory_service import InventoryService
 from bookrover.utils.id_generator import generate_id
 from bookrover.utils.timestamp import utc_now_iso
+
+
+def _mock_seller_user(request: Request) -> MeResponse:
+    """Inject a seller identity whose seller_id mirrors the URL path parameter."""
+    seller_id = request.path_params.get("seller_id", "")
+    return MeResponse(email="priya@gmail.com", roles=["seller"], seller_id=seller_id)
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -46,6 +55,7 @@ def integration_client(sellers_table, inventory_table):
 
     app = create_app()
     app.dependency_overrides[get_inventory_service] = lambda: real_service
+    app.dependency_overrides[get_current_user] = _mock_seller_user
     return TestClient(app)
 
 

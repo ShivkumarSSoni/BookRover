@@ -18,12 +18,23 @@ from bookrover.exceptions.not_found import (
 )
 from bookrover.interfaces.abstract_seller_service import AbstractSellerService
 from bookrover.main import create_app
+from bookrover.models.auth import MeResponse
 from bookrover.models.seller import SellerResponse
+from bookrover.routers.auth import get_current_user
 from bookrover.routers.sellers import get_seller_service
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
+
+# Authenticated user who owns sel-001 and matches the registration email
+SELLER_ME = MeResponse(
+    email="priya@gmail.com", roles=["seller"], seller_id="sel-001"
+)
+# New user (no role yet) who is registering
+NEW_USER_ME = MeResponse(email="priya@gmail.com", roles=[])
+ADMIN_ME = MeResponse(email="admin@example.com", roles=["admin"])
 
 
 @pytest.fixture
@@ -34,9 +45,28 @@ def mock_service():
 
 @pytest.fixture
 def client(mock_service):
-    """TestClient with the mock service injected via dependency override."""
+    """TestClient with mock service and a seller user whose email matches SEL-001."""
     app = create_app()
     app.dependency_overrides[get_seller_service] = lambda: mock_service
+    app.dependency_overrides[get_current_user] = lambda: SELLER_ME
+    return TestClient(app)
+
+
+@pytest.fixture
+def new_user_client(mock_service):
+    """TestClient for a new user (no roles yet) registering as seller."""
+    app = create_app()
+    app.dependency_overrides[get_seller_service] = lambda: mock_service
+    app.dependency_overrides[get_current_user] = lambda: NEW_USER_ME
+    return TestClient(app)
+
+
+@pytest.fixture
+def admin_client(mock_service):
+    """TestClient with admin user injected."""
+    app = create_app()
+    app.dependency_overrides[get_seller_service] = lambda: mock_service
+    app.dependency_overrides[get_current_user] = lambda: ADMIN_ME
     return TestClient(app)
 
 
@@ -70,11 +100,11 @@ REGISTER_PAYLOAD = {
 # ---------------------------------------------------------------------------
 
 
-def test_register_seller_returns_201(client, mock_service):
-    """POST /sellers should return 201 and the created seller."""
+def test_register_seller_returns_201(new_user_client, mock_service):
+    """POST /sellers should return 201 for an authenticated user registering their own email."""
     mock_service.register_seller.return_value = SELLER_RESPONSE
 
-    response = client.post("/sellers", json=REGISTER_PAYLOAD)
+    response = new_user_client.post("/sellers", json=REGISTER_PAYLOAD)
 
     assert response.status_code == 201
     data = response.json()
@@ -83,48 +113,48 @@ def test_register_seller_returns_201(client, mock_service):
     assert data["status"] == "active"
 
 
-def test_register_seller_returns_409_for_duplicate_email(client, mock_service):
+def test_register_seller_returns_409_for_duplicate_email(new_user_client, mock_service):
     """POST /sellers should return 409 when the email is already registered."""
     mock_service.register_seller.side_effect = DuplicateEmailError("priya@gmail.com")
 
-    response = client.post("/sellers", json=REGISTER_PAYLOAD)
+    response = new_user_client.post("/sellers", json=REGISTER_PAYLOAD)
 
     assert response.status_code == 409
     assert "already registered" in response.json()["detail"]
 
 
-def test_register_seller_returns_404_for_unknown_group_leader(client, mock_service):
+def test_register_seller_returns_404_for_unknown_group_leader(new_user_client, mock_service):
     """POST /sellers should return 404 when group_leader_id is not found."""
     mock_service.register_seller.side_effect = GroupLeaderNotFoundError("gl-999")
 
-    response = client.post("/sellers", json=REGISTER_PAYLOAD)
+    response = new_user_client.post("/sellers", json=REGISTER_PAYLOAD)
 
     assert response.status_code == 404
     assert "gl-999" in response.json()["detail"]
 
 
-def test_register_seller_returns_404_for_unknown_bookstore(client, mock_service):
+def test_register_seller_returns_404_for_unknown_bookstore(new_user_client, mock_service):
     """POST /sellers should return 404 when bookstore_id is not found."""
     mock_service.register_seller.side_effect = BookStoreNotFoundError("bs-999")
 
-    response = client.post("/sellers", json=REGISTER_PAYLOAD)
+    response = new_user_client.post("/sellers", json=REGISTER_PAYLOAD)
 
     assert response.status_code == 404
     assert "bs-999" in response.json()["detail"]
 
 
-def test_register_seller_returns_422_for_missing_fields(client, mock_service):
+def test_register_seller_returns_422_for_missing_fields(new_user_client, mock_service):
     """POST /sellers should return 422 when required fields are missing."""
-    response = client.post("/sellers", json={"first_name": "Priya"})
+    response = new_user_client.post("/sellers", json={"first_name": "Priya"})
 
     assert response.status_code == 422
 
 
-def test_register_seller_returns_422_for_invalid_email(client, mock_service):
+def test_register_seller_returns_422_for_invalid_email(new_user_client, mock_service):
     """POST /sellers should return 422 for a malformed email address."""
     payload = {**REGISTER_PAYLOAD, "email": "not-an-email"}
 
-    response = client.post("/sellers", json=payload)
+    response = new_user_client.post("/sellers", json=payload)
 
     assert response.status_code == 422
 
@@ -150,7 +180,45 @@ def test_get_seller_returns_404_for_unknown_id(client, mock_service):
     """GET /sellers/{seller_id} should return 404 when seller does not exist."""
     mock_service.get_seller.side_effect = SellerNotFoundError("nonexistent")
 
-    response = client.get("/sellers/nonexistent")
+    response = client.get("/sellers/sel-001")
 
     assert response.status_code == 404
     assert "nonexistent" in response.json()["detail"]
+
+
+# ---------------------------------------------------------------------------
+# Auth enforcement tests
+# ---------------------------------------------------------------------------
+
+
+def test_sellers_endpoint_returns_401_without_auth():
+    """Endpoints must return 401 when no Authorization header is present."""
+    app = create_app()
+    c = TestClient(app)
+    response = c.get("/sellers/sel-001")
+    assert response.status_code == 401
+
+
+def test_register_seller_returns_403_when_email_does_not_match_caller(mock_service):
+    """POST /sellers must return 403 if payload email differs from the caller's token email."""
+    different_user = MeResponse(email="someone.else@example.com", roles=[])
+    app = create_app()
+    app.dependency_overrides[get_seller_service] = lambda: mock_service
+    app.dependency_overrides[get_current_user] = lambda: different_user
+    c = TestClient(app)
+    response = c.post("/sellers", json=REGISTER_PAYLOAD)  # payload email is priya@gmail.com
+    assert response.status_code == 403
+
+
+def test_get_seller_returns_403_for_different_seller_id(client, mock_service):
+    """GET /sellers/{seller_id} must return 403 when a seller calls for a different seller_id."""
+    # client fixture has SELLER_ME with seller_id="sel-001"
+    response = client.get("/sellers/sel-DIFFERENT")
+    assert response.status_code == 403
+
+
+def test_get_seller_returns_200_for_admin_reading_any_seller(admin_client, mock_service):
+    """Admin can read any seller profile."""
+    mock_service.get_seller.return_value = SELLER_RESPONSE
+    response = admin_client.get("/sellers/sel-001")
+    assert response.status_code == 200

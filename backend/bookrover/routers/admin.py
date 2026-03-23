@@ -23,6 +23,7 @@ from bookrover.exceptions.not_found import (
     GroupLeaderNotFoundError,
 )
 from bookrover.interfaces.abstract_admin_service import AbstractAdminService
+from bookrover.models.auth import MeResponse
 from bookrover.models.bookstore import (
     BookStoreCreate,
     BookStoreResponse,
@@ -35,6 +36,7 @@ from bookrover.models.group_leader import (
 )
 from bookrover.repositories.bookstore_repository import DynamoDBBookstoreRepository
 from bookrover.repositories.group_leader_repository import DynamoDBGroupLeaderRepository
+from bookrover.routers.auth import require_admin
 from bookrover.services.admin_service import AdminService
 
 logger = logging.getLogger(__name__)
@@ -90,6 +92,7 @@ def get_admin_service(
 async def create_bookstore(
     payload: BookStoreCreate,
     service: AbstractAdminService = Depends(get_admin_service),
+    current_user: MeResponse = Depends(require_admin),
 ) -> BookStoreResponse:
     """Create a new BookStore."""
     return service.create_bookstore(payload)
@@ -104,6 +107,7 @@ async def create_bookstore(
 )
 async def list_bookstores(
     service: AbstractAdminService = Depends(get_admin_service),
+    current_user: MeResponse = Depends(require_admin),
 ) -> List[BookStoreResponse]:
     """List all BookStores."""
     return service.list_bookstores()
@@ -120,6 +124,7 @@ async def update_bookstore(
     bookstore_id: str,
     payload: BookStoreUpdate,
     service: AbstractAdminService = Depends(get_admin_service),
+    current_user: MeResponse = Depends(require_admin),
 ) -> BookStoreResponse:
     """Update a BookStore by ID."""
     try:
@@ -137,6 +142,7 @@ async def update_bookstore(
 async def delete_bookstore(
     bookstore_id: str,
     service: AbstractAdminService = Depends(get_admin_service),
+    current_user: MeResponse = Depends(require_admin),
 ) -> None:
     """Delete a BookStore by ID."""
     try:
@@ -160,6 +166,7 @@ async def delete_bookstore(
 async def create_group_leader(
     payload: GroupLeaderCreate,
     service: AbstractAdminService = Depends(get_admin_service),
+    current_user: MeResponse = Depends(require_admin),
 ) -> GroupLeaderResponse:
     """Create a new GroupLeader."""
     try:
@@ -177,6 +184,7 @@ async def create_group_leader(
 )
 async def list_group_leaders(
     service: AbstractAdminService = Depends(get_admin_service),
+    current_user: MeResponse = Depends(require_admin),
 ) -> List[GroupLeaderResponse]:
     """List all GroupLeaders."""
     return service.list_group_leaders()
@@ -193,6 +201,7 @@ async def update_group_leader(
     group_leader_id: str,
     payload: GroupLeaderUpdate,
     service: AbstractAdminService = Depends(get_admin_service),
+    current_user: MeResponse = Depends(require_admin),
 ) -> GroupLeaderResponse:
     """Update a GroupLeader by ID."""
     try:
@@ -210,6 +219,7 @@ async def update_group_leader(
 async def delete_group_leader(
     group_leader_id: str,
     service: AbstractAdminService = Depends(get_admin_service),
+    current_user: MeResponse = Depends(require_admin),
 ) -> None:
     """Delete a GroupLeader by ID."""
     try:

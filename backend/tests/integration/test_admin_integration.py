@@ -9,10 +9,14 @@ import pytest
 from fastapi.testclient import TestClient
 
 from bookrover.main import create_app
+from bookrover.models.auth import MeResponse
 from bookrover.repositories.bookstore_repository import DynamoDBBookstoreRepository
 from bookrover.repositories.group_leader_repository import DynamoDBGroupLeaderRepository
 from bookrover.routers.admin import get_admin_service
+from bookrover.routers.auth import get_current_user
 from bookrover.services.admin_service import AdminService
+
+ADMIN_ME = MeResponse(email="admin@example.com", roles=["admin"])
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -42,6 +46,7 @@ def integration_client(dynamodb_tables):
 
     app = create_app()
     app.dependency_overrides[get_admin_service] = lambda: real_service
+    app.dependency_overrides[get_current_user] = lambda: ADMIN_ME
     return TestClient(app)
 
 

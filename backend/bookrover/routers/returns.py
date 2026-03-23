@@ -20,12 +20,14 @@ from bookrover.config import Settings
 from bookrover.dependencies import get_dynamodb_resource, get_settings
 from bookrover.exceptions.not_found import BookStoreNotFoundError, SellerNotFoundError
 from bookrover.interfaces.abstract_return_service import AbstractReturnService
+from bookrover.models.auth import MeResponse
 from bookrover.models.return_models import ReturnCreate, ReturnResponse, ReturnSummaryResponse
 from bookrover.repositories.bookstore_repository import DynamoDBBookstoreRepository
 from bookrover.repositories.inventory_repository import DynamoDBInventoryRepository
 from bookrover.repositories.return_repository import DynamoDBReturnRepository
 from bookrover.repositories.sale_repository import DynamoDBSaleRepository
 from bookrover.repositories.seller_repository import DynamoDBSellerRepository
+from bookrover.routers.auth import require_seller
 from bookrover.services.return_service import ReturnService
 
 logger = logging.getLogger(__name__)
@@ -86,19 +88,24 @@ def get_return_service(
 async def get_return_summary(
     seller_id: str,
     service: AbstractReturnService = Depends(get_return_service),
+    current_user: MeResponse = Depends(require_seller),
 ) -> ReturnSummaryResponse:
     """Retrieve the return summary for a seller.
 
     Args:
         seller_id: UUID of the seller from the path parameter.
         service: Injected ReturnService.
+        current_user: Resolved seller identity.
 
     Returns:
         ReturnSummaryResponse with bookstore info, books to return, and totals.
 
     Raises:
+        HTTPException 403: If the caller is not the seller identified by seller_id.
         HTTPException 404: If the seller or their bookstore is not found.
     """
+    if current_user.seller_id != seller_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden.")
     try:
         return service.get_return_summary(seller_id)
     except SellerNotFoundError as exc:
@@ -122,6 +129,7 @@ async def submit_return(
     seller_id: str,
     payload: ReturnCreate,
     service: AbstractReturnService = Depends(get_return_service),
+    current_user: MeResponse = Depends(require_seller),
 ) -> ReturnResponse:
     """Submit a return for a seller.
 
@@ -129,13 +137,17 @@ async def submit_return(
         seller_id: UUID of the seller from the path parameter.
         payload: ReturnCreate with optional notes.
         service: Injected ReturnService.
+        current_user: Resolved seller identity.
 
     Returns:
         ReturnResponse representing the completed return record.
 
     Raises:
+        HTTPException 403: If the caller is not the seller identified by seller_id.
         HTTPException 404: If the seller is not found.
     """
+    if current_user.seller_id != seller_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden.")
     try:
         return service.submit_return(seller_id, payload.notes)
     except SellerNotFoundError as exc:

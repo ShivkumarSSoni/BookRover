@@ -23,10 +23,12 @@ from bookrover.exceptions.not_found import (
     SellerNotFoundError,
 )
 from bookrover.interfaces.abstract_seller_service import AbstractSellerService
+from bookrover.models.auth import MeResponse
 from bookrover.models.seller import SellerCreate, SellerResponse
 from bookrover.repositories.bookstore_repository import DynamoDBBookstoreRepository
 from bookrover.repositories.group_leader_repository import DynamoDBGroupLeaderRepository
 from bookrover.repositories.seller_repository import DynamoDBSellerRepository
+from bookrover.routers.auth import get_current_user
 from bookrover.services.seller_service import SellerService
 
 logger = logging.getLogger(__name__)
@@ -90,20 +92,31 @@ def get_seller_service(
 async def register_seller(
     payload: SellerCreate,
     service: AbstractSellerService = Depends(get_seller_service),
+    current_user: MeResponse = Depends(get_current_user),
 ) -> SellerResponse:
     """Register a new seller.
+
+    Requires authentication. The email in the payload must match the caller's
+    authenticated email — a user cannot register a seller profile for someone else.
 
     Args:
         payload: Validated SellerCreate request body.
         service: Injected SellerService.
+        current_user: Resolved caller identity.
 
     Returns:
         SellerResponse for the created seller.
 
     Raises:
+        HTTPException 403: If payload email does not match the caller's email.
         HTTPException 409: If email is already registered.
         HTTPException 404: If group_leader_id or bookstore_id not found.
     """
+    if str(payload.email).lower() != current_user.email.lower():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: email must match your authenticated identity.",
+        )
     try:
         return service.register_seller(payload)
     except DuplicateEmailError as exc:
@@ -124,19 +137,30 @@ async def register_seller(
 async def get_seller(
     seller_id: str,
     service: AbstractSellerService = Depends(get_seller_service),
+    current_user: MeResponse = Depends(get_current_user),
 ) -> SellerResponse:
     """Retrieve a seller profile by ID.
+
+    Accessible by the seller themselves (own profile only) or by admin.
 
     Args:
         seller_id: UUID of the seller from the path parameter.
         service: Injected SellerService.
+        current_user: Resolved caller identity.
 
     Returns:
         SellerResponse for the seller.
 
     Raises:
+        HTTPException 403: If the caller is not admin and not the seller themselves.
         HTTPException 404: If no seller exists with the given ID.
     """
+    is_admin = "admin" in current_user.roles
+    is_own_profile = (
+        "seller" in current_user.roles and current_user.seller_id == seller_id
+    )
+    if not (is_admin or is_own_profile):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden.")
     try:
         return service.get_seller(seller_id)
     except SellerNotFoundError as exc:

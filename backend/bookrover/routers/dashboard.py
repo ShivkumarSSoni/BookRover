@@ -18,6 +18,7 @@ from bookrover.config import Settings
 from bookrover.dependencies import get_dynamodb_resource, get_settings
 from bookrover.exceptions.not_found import BookStoreNotFoundError, GroupLeaderNotFoundError
 from bookrover.interfaces.abstract_dashboard_service import AbstractDashboardService
+from bookrover.models.auth import MeResponse
 from bookrover.models.dashboard import (
     DEFAULT_SORT_BY,
     DEFAULT_SORT_ORDER,
@@ -29,6 +30,7 @@ from bookrover.repositories.bookstore_repository import DynamoDBBookstoreReposit
 from bookrover.repositories.group_leader_repository import DynamoDBGroupLeaderRepository
 from bookrover.repositories.sale_repository import DynamoDBSaleRepository
 from bookrover.repositories.seller_repository import DynamoDBSellerRepository
+from bookrover.routers.auth import require_group_leader
 from bookrover.services.dashboard_service import DashboardService
 
 logger = logging.getLogger(__name__)
@@ -94,6 +96,7 @@ async def get_dashboard(
     sort_by: SortByField = DEFAULT_SORT_BY,
     sort_order: SortOrder = DEFAULT_SORT_ORDER,
     service: AbstractDashboardService = Depends(get_dashboard_service),
+    current_user: MeResponse = Depends(require_group_leader),
 ) -> DashboardResponse:
     """Retrieve the group leader dashboard for a bookstore.
 
@@ -103,14 +106,18 @@ async def get_dashboard(
         sort_by: Field to sort sellers by (default: 'total_amount_collected').
         sort_order: Sort direction (default: 'desc').
         service: Injected DashboardService.
+        current_user: Resolved group leader identity.
 
     Returns:
         DashboardResponse with per-seller rows and aggregate totals.
 
     Raises:
+        HTTPException 403: If the caller is not the group leader identified by group_leader_id.
         HTTPException 404: If group leader or bookstore is not found, or
             the bookstore is not linked to this group leader.
     """
+    if current_user.group_leader_id != group_leader_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden.")
     try:
         return service.get_dashboard(group_leader_id, bookstore_id, sort_by, sort_order)
     except GroupLeaderNotFoundError as exc:

@@ -9,14 +9,18 @@ import pytest
 from fastapi.testclient import TestClient
 
 from bookrover.main import create_app
+from bookrover.models.auth import MeResponse
 from bookrover.repositories.bookstore_repository import DynamoDBBookstoreRepository
 from bookrover.repositories.group_leader_repository import DynamoDBGroupLeaderRepository
 from bookrover.repositories.seller_repository import DynamoDBSellerRepository
+from bookrover.routers.auth import get_current_user
 from bookrover.routers.lookup import get_lookup_repos
 from bookrover.routers.sellers import get_seller_service
 from bookrover.services.seller_service import SellerService
 from bookrover.utils.id_generator import generate_id
 from bookrover.utils.timestamp import utc_now_iso
+
+SELLER_ME = MeResponse(email="priya@gmail.com", roles=["seller", "admin"])
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -60,6 +64,7 @@ def integration_client(bookstore_table, group_leaders_table, sellers_table):
     app = create_app()
     app.dependency_overrides[get_seller_service] = lambda: real_service
     app.dependency_overrides[get_lookup_repos] = lambda: (group_leader_repo, bookstore_repo)
+    app.dependency_overrides[get_current_user] = lambda: SELLER_ME
     return TestClient(app)
 
 

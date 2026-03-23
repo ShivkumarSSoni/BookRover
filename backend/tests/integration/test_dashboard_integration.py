@@ -8,17 +8,26 @@ are wired together; only DynamoDB is replaced by moto's in-memory store.
 from decimal import Decimal
 
 import pytest
+from fastapi import Request
 from fastapi.testclient import TestClient
 
 from bookrover.main import create_app
+from bookrover.models.auth import MeResponse
 from bookrover.repositories.bookstore_repository import DynamoDBBookstoreRepository
 from bookrover.repositories.group_leader_repository import DynamoDBGroupLeaderRepository
 from bookrover.repositories.sale_repository import DynamoDBSaleRepository
 from bookrover.repositories.seller_repository import DynamoDBSellerRepository
+from bookrover.routers.auth import get_current_user
 from bookrover.routers.dashboard import get_dashboard_service
 from bookrover.services.dashboard_service import DashboardService
 from bookrover.utils.id_generator import generate_id
 from bookrover.utils.timestamp import utc_now_iso
+
+
+def _mock_gl_user(request: Request) -> MeResponse:
+    """Inject a group leader identity whose group_leader_id mirrors the URL path parameter."""
+    gl_id = request.path_params.get("group_leader_id", "")
+    return MeResponse(email="ravi@gmail.com", roles=["group_leader"], group_leader_id=gl_id)
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -63,6 +72,7 @@ def integration_client(group_leaders_table, bookstores_table, sellers_table, sal
     )
     app = create_app()
     app.dependency_overrides[get_dashboard_service] = lambda: real_service
+    app.dependency_overrides[get_current_user] = _mock_gl_user
     return TestClient(app)
 
 

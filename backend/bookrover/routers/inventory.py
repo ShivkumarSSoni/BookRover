@@ -19,6 +19,7 @@ from bookrover.dependencies import get_dynamodb_resource, get_settings
 from bookrover.exceptions.conflict import BookPartiallySoldError
 from bookrover.exceptions.not_found import BookNotFoundError, SellerNotFoundError
 from bookrover.interfaces.abstract_inventory_service import AbstractInventoryService
+from bookrover.models.auth import MeResponse
 from bookrover.models.inventory import (
     BookCreate,
     BookResponse,
@@ -27,6 +28,7 @@ from bookrover.models.inventory import (
 )
 from bookrover.repositories.inventory_repository import DynamoDBInventoryRepository
 from bookrover.repositories.seller_repository import DynamoDBSellerRepository
+from bookrover.routers.auth import require_seller
 from bookrover.services.inventory_service import InventoryService
 
 logger = logging.getLogger(__name__)
@@ -84,6 +86,7 @@ async def add_book(
     seller_id: str,
     payload: BookCreate,
     service: AbstractInventoryService = Depends(get_inventory_service),
+    current_user: MeResponse = Depends(require_seller),
 ) -> BookResponse:
     """Add a book to a seller's inventory.
 
@@ -91,13 +94,17 @@ async def add_book(
         seller_id: UUID of the seller from the path parameter.
         payload: Validated BookCreate request body.
         service: Injected InventoryService.
+        current_user: Resolved seller identity.
 
     Returns:
         BookResponse for the created book.
 
     Raises:
+        HTTPException 403: If the caller is not the seller identified by seller_id.
         HTTPException 404: If seller does not exist.
     """
+    if current_user.seller_id != seller_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden.")
     try:
         return service.add_book(seller_id, payload)
     except SellerNotFoundError as exc:
@@ -117,19 +124,24 @@ async def add_book(
 async def get_inventory(
     seller_id: str,
     service: AbstractInventoryService = Depends(get_inventory_service),
+    current_user: MeResponse = Depends(require_seller),
 ) -> InventoryListResponse:
     """List all inventory books for a seller.
 
     Args:
         seller_id: UUID of the seller from the path parameter.
         service: Injected InventoryService.
+        current_user: Resolved seller identity.
 
     Returns:
         InventoryListResponse with books list and summary.
 
     Raises:
+        HTTPException 403: If the caller is not the seller identified by seller_id.
         HTTPException 404: If seller does not exist.
     """
+    if current_user.seller_id != seller_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden.")
     try:
         return service.get_inventory(seller_id)
     except SellerNotFoundError as exc:
@@ -152,6 +164,7 @@ async def update_book(
     book_id: str,
     payload: BookUpdate,
     service: AbstractInventoryService = Depends(get_inventory_service),
+    current_user: MeResponse = Depends(require_seller),
 ) -> BookResponse:
     """Update a book in a seller's inventory.
 
@@ -160,13 +173,17 @@ async def update_book(
         book_id: UUID of the book from the path parameter.
         payload: Validated BookUpdate request body.
         service: Injected InventoryService.
+        current_user: Resolved seller identity.
 
     Returns:
         Updated BookResponse.
 
     Raises:
+        HTTPException 403: If the caller is not the seller identified by seller_id.
         HTTPException 404: If book not found or does not belong to seller.
     """
+    if current_user.seller_id != seller_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden.")
     try:
         return service.update_book(seller_id, book_id, payload)
     except BookNotFoundError as exc:
@@ -187,6 +204,7 @@ async def remove_book(
     seller_id: str,
     book_id: str,
     service: AbstractInventoryService = Depends(get_inventory_service),
+    current_user: MeResponse = Depends(require_seller),
 ) -> None:
     """Remove a book from a seller's inventory.
 
@@ -194,11 +212,15 @@ async def remove_book(
         seller_id: UUID of the seller from the path parameter.
         book_id: UUID of the book from the path parameter.
         service: Injected InventoryService.
+        current_user: Resolved seller identity.
 
     Raises:
+        HTTPException 403: If the caller is not the seller identified by seller_id.
         HTTPException 404: If book not found or does not belong to seller.
         HTTPException 409: If book has been partially sold.
     """
+    if current_user.seller_id != seller_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden.")
     try:
         service.remove_book(seller_id, book_id)
     except BookNotFoundError as exc:

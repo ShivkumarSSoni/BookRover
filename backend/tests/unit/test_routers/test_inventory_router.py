@@ -14,12 +14,17 @@ from bookrover.exceptions.conflict import BookPartiallySoldError
 from bookrover.exceptions.not_found import BookNotFoundError, SellerNotFoundError
 from bookrover.interfaces.abstract_inventory_service import AbstractInventoryService
 from bookrover.main import create_app
+from bookrover.models.auth import MeResponse
 from bookrover.models.inventory import BookResponse, InventoryListResponse, InventorySummary
+from bookrover.routers.auth import get_current_user
 from bookrover.routers.inventory import get_inventory_service
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
+
+SELLER_ME = MeResponse(email="seller@example.com", roles=["seller"], seller_id="sel-001")
 
 
 @pytest.fixture
@@ -30,9 +35,10 @@ def mock_service():
 
 @pytest.fixture
 def client(mock_service):
-    """TestClient with the mock service injected via dependency override."""
+    """TestClient with mock service and seller sel-001 injected as current user."""
     app = create_app()
     app.dependency_overrides[get_inventory_service] = lambda: mock_service
+    app.dependency_overrides[get_current_user] = lambda: SELLER_ME
     return TestClient(app)
 
 
@@ -96,12 +102,12 @@ def test_add_book_returns_201(client, mock_service):
 
 def test_add_book_returns_404_for_unknown_seller(client, mock_service):
     """POST /sellers/{id}/inventory should return 404 if seller not found."""
-    mock_service.add_book.side_effect = SellerNotFoundError("unknown-seller")
+    mock_service.add_book.side_effect = SellerNotFoundError("sel-001")
 
-    response = client.post("/sellers/unknown-seller/inventory", json=ADD_BOOK_PAYLOAD)
+    response = client.post("/sellers/sel-001/inventory", json=ADD_BOOK_PAYLOAD)
 
     assert response.status_code == 404
-    assert "unknown-seller" in response.json()["detail"]
+    assert "sel-001" in response.json()["detail"]
 
 
 def test_add_book_validates_selling_price_below_cost(client, mock_service):
@@ -149,9 +155,9 @@ def test_get_inventory_returns_200(client, mock_service):
 
 def test_get_inventory_returns_404_for_unknown_seller(client, mock_service):
     """GET /sellers/{id}/inventory should return 404 if seller not found."""
-    mock_service.get_inventory.side_effect = SellerNotFoundError("unknown")
+    mock_service.get_inventory.side_effect = SellerNotFoundError("sel-001")
 
-    response = client.get("/sellers/unknown/inventory")
+    response = client.get("/sellers/sel-001/inventory")
 
     assert response.status_code == 404
 
@@ -220,3 +226,45 @@ def test_remove_book_returns_409_when_partially_sold(client, mock_service):
 
     assert response.status_code == 409
     assert "partially sold" in response.json()["detail"]
+
+
+# ---------------------------------------------------------------------------
+# Auth enforcement tests
+# ---------------------------------------------------------------------------
+
+
+def test_inventory_endpoint_returns_401_without_auth():
+    """Inventory endpoints must return 401 when no Authorization header is present."""
+    app = create_app()
+    c = TestClient(app)
+    response = c.get("/sellers/sel-001/inventory")
+    assert response.status_code == 401
+
+
+def test_inventory_endpoint_returns_403_for_non_seller_role():
+    """Inventory endpoints must return 403 for an admin or GL caller (not a seller)."""
+    admin_me = MeResponse(email="admin@example.com", roles=["admin"])
+    app = create_app()
+    app.dependency_overrides[get_current_user] = lambda: admin_me
+    c = TestClient(app)
+    response = c.get("/sellers/sel-001/inventory")
+    assert response.status_code == 403
+
+
+def test_inventory_endpoint_returns_403_for_wrong_seller_id(client, mock_service):
+    """Inventory endpoints must return 403 when the seller_id in the URL belongs to another seller."""
+    # client has SELLER_ME with seller_id="sel-001"
+    response = client.get("/sellers/sel-DIFFERENT/inventory")
+    assert response.status_code == 403
+
+
+def test_add_book_returns_403_for_wrong_seller_id(client, mock_service):
+    """POST inventory must return 403 when the seller_id path param belongs to another seller."""
+    response = client.post("/sellers/sel-DIFFERENT/inventory", json=ADD_BOOK_PAYLOAD)
+    assert response.status_code == 403
+
+
+def test_remove_book_returns_403_for_wrong_seller_id(client, mock_service):
+    """DELETE inventory must return 403 when the seller_id path param belongs to another seller."""
+    response = client.delete("/sellers/sel-DIFFERENT/inventory/book-001")
+    assert response.status_code == 403

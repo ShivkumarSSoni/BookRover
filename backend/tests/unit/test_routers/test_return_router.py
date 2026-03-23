@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 from bookrover.exceptions.not_found import BookStoreNotFoundError, SellerNotFoundError
 from bookrover.interfaces.abstract_return_service import AbstractReturnService
 from bookrover.main import create_app
+from bookrover.models.auth import MeResponse
 from bookrover.models.return_models import (
     ReturnItemResponse,
     ReturnResponse,
@@ -20,11 +21,17 @@ from bookrover.models.return_models import (
     ReturnSummaryBookstoreInfo,
     ReturnSummaryResponse,
 )
+from bookrover.routers.auth import get_current_user
 from bookrover.routers.returns import get_return_service
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
+
+# SELLER_ID must match the seller_id in SELLER_ME below
+SELLER_ID = "seller-001"
+SELLER_ME = MeResponse(email="seller@example.com", roles=["seller"], seller_id=SELLER_ID)
 
 
 @pytest.fixture
@@ -35,9 +42,10 @@ def mock_service():
 
 @pytest.fixture
 def client(mock_service):
-    """TestClient with the mock service injected via dependency override."""
+    """TestClient with mock service and seller matching SELLER_ID injected."""
     app = create_app()
     app.dependency_overrides[get_return_service] = lambda: mock_service
+    app.dependency_overrides[get_current_user] = lambda: SELLER_ME
     return TestClient(app)
 
 
@@ -91,8 +99,6 @@ RETURN_RESPONSE = ReturnResponse(
     return_date="2026-03-21T18:00:00Z",
 )
 
-SELLER_ID = "seller-001"
-
 
 # ---------------------------------------------------------------------------
 # GET /sellers/{seller_id}/return-summary
@@ -127,12 +133,12 @@ def test_get_return_summary_delegates_seller_id(client, mock_service):
 
 def test_get_return_summary_returns_404_for_unknown_seller(client, mock_service):
     """GET /sellers/{id}/return-summary returns 404 when seller does not exist."""
-    mock_service.get_return_summary.side_effect = SellerNotFoundError("unknown-seller")
+    mock_service.get_return_summary.side_effect = SellerNotFoundError(SELLER_ID)
 
-    response = client.get("/sellers/unknown-seller/return-summary")
+    response = client.get(f"/sellers/{SELLER_ID}/return-summary")
 
     assert response.status_code == 404
-    assert "unknown-seller" in response.json()["detail"]
+    assert SELLER_ID in response.json()["detail"]
 
 
 def test_get_return_summary_returns_404_when_bookstore_not_found(client, mock_service):
@@ -201,12 +207,12 @@ def test_submit_return_passes_none_notes_when_omitted(client, mock_service):
 
 def test_submit_return_returns_404_for_unknown_seller(client, mock_service):
     """POST /sellers/{id}/returns returns 404 when seller does not exist."""
-    mock_service.submit_return.side_effect = SellerNotFoundError("unknown-seller")
+    mock_service.submit_return.side_effect = SellerNotFoundError(SELLER_ID)
 
-    response = client.post("/sellers/unknown-seller/returns", json={})
+    response = client.post(f"/sellers/{SELLER_ID}/returns", json={})
 
     assert response.status_code == 404
-    assert "unknown-seller" in response.json()["detail"]
+    assert SELLER_ID in response.json()["detail"]
 
 
 def test_submit_return_return_items_row_shape(client, mock_service):
@@ -220,3 +226,38 @@ def test_submit_return_return_items_row_shape(client, mock_service):
     assert item["quantity_returned"] == 8
     assert item["cost_per_book"] == 50.0
     assert item["total_cost"] == 400.0
+
+
+# ---------------------------------------------------------------------------
+# Auth enforcement tests
+# ---------------------------------------------------------------------------
+
+
+def test_returns_endpoint_returns_401_without_auth():
+    """Return endpoints must return 401 when no Authorization header is present."""
+    app = create_app()
+    c = TestClient(app)
+    response = c.get(f"/sellers/{SELLER_ID}/return-summary")
+    assert response.status_code == 401
+
+
+def test_returns_endpoint_returns_403_for_non_seller_role():
+    """Return endpoints must return 403 for a GL caller (not a seller)."""
+    gl_me = MeResponse(email="gl@example.com", roles=["group_leader"], group_leader_id="gl-001")
+    app = create_app()
+    app.dependency_overrides[get_current_user] = lambda: gl_me
+    c = TestClient(app)
+    response = c.get(f"/sellers/{SELLER_ID}/return-summary")
+    assert response.status_code == 403
+
+
+def test_returns_endpoint_returns_403_for_wrong_seller_id(client, mock_service):
+    """Return endpoints must return 403 when the seller_id path param belongs to another seller."""
+    response = client.get("/sellers/sel-DIFFERENT/return-summary")
+    assert response.status_code == 403
+
+
+def test_submit_return_returns_403_for_wrong_seller_id(client, mock_service):
+    """POST returns must return 403 when the seller_id path param belongs to another seller."""
+    response = client.post("/sellers/sel-DIFFERENT/returns", json={})
+    assert response.status_code == 403
