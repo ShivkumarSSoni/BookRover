@@ -37,12 +37,13 @@ BookRover/
 ## Development Phases
 
 1. ✅ Spec files + SKILL.md + project scaffold
-2. ⬜ Backend: FastAPI + DynamoDB + tests
-3. ⬜ Frontend: React + mobile-first UI
-4. ⬜ AWS Console manual setup
-5. ⬜ End-to-end testing on AWS
-6. ✅ Cognito Email OTP authentication (frontend + backend + operator docs)
-7. ⬜ Terraform IaC
+2. ✅ Backend: FastAPI + DynamoDB + tests
+3. ✅ Frontend: React + mobile-first UI
+4. ✅ Cognito Email OTP authentication (frontend + backend + operator docs)
+5. ✅ Security hardening (two-pass audit — 17 fixes; CVE-2024-23342 remediation)
+6. ⬜ AWS Console manual setup
+7. ⬜ End-to-end testing on AWS
+8. ⬜ Terraform IaC
 
 ## Estimated AWS Cost
 
