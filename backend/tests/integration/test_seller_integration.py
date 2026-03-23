@@ -3,6 +3,10 @@
 Tests the full HTTP → Service → Repository → DynamoDB round trip
 using moto to mock AWS. Real repositories and a real SellerService are
 wired together; only DynamoDB is replaced by moto's in-memory store.
+
+The email verification flow is exercised end-to-end:
+  1. POST /sellers/request-verification — code returned in test (dev mode)
+  2. POST /sellers with the returned code — completes registration
 """
 
 import pytest
@@ -13,9 +17,10 @@ from bookrover.models.auth import MeResponse
 from bookrover.repositories.bookstore_repository import DynamoDBBookstoreRepository
 from bookrover.repositories.group_leader_repository import DynamoDBGroupLeaderRepository
 from bookrover.repositories.seller_repository import DynamoDBSellerRepository
+from bookrover.repositories.verification_repository import DynamoDBVerificationRepository
 from bookrover.routers.auth import get_current_user
 from bookrover.routers.lookup import get_lookup_repos
-from bookrover.routers.sellers import get_seller_service
+from bookrover.routers.sellers import get_seller_service, get_verification_repo
 from bookrover.services.seller_service import SellerService
 from bookrover.utils.id_generator import generate_id
 from bookrover.utils.timestamp import utc_now_iso
@@ -46,7 +51,13 @@ def sellers_table(dynamodb_tables):
 
 
 @pytest.fixture
-def integration_client(bookstore_table, group_leaders_table, sellers_table):
+def verifications_table(dynamodb_tables):
+    """Return the moto-backed email-verifications table."""
+    return dynamodb_tables.Table("bookrover-email-verifications-test")
+
+
+@pytest.fixture
+def integration_client(bookstore_table, group_leaders_table, sellers_table, verifications_table):
     """TestClient wired with real service + real repositories against moto DynamoDB."""
     bookstore_repo = DynamoDBBookstoreRepository(table=bookstore_table)
     group_leader_repo = DynamoDBGroupLeaderRepository(
@@ -54,6 +65,7 @@ def integration_client(bookstore_table, group_leaders_table, sellers_table):
         sellers_table=sellers_table,
     )
     seller_repo = DynamoDBSellerRepository(table=sellers_table)
+    verification_repo = DynamoDBVerificationRepository(table=verifications_table)
 
     real_service = SellerService(
         seller_repository=seller_repo,
@@ -63,6 +75,7 @@ def integration_client(bookstore_table, group_leaders_table, sellers_table):
 
     app = create_app()
     app.dependency_overrides[get_seller_service] = lambda: real_service
+    app.dependency_overrides[get_verification_repo] = lambda: verification_repo
     app.dependency_overrides[get_lookup_repos] = lambda: (group_leader_repo, bookstore_repo)
     app.dependency_overrides[get_current_user] = lambda: SELLER_ME
     return TestClient(app)
@@ -104,6 +117,16 @@ def _seed_group_leader(group_leaders_table, bookstore_ids: list) -> str:
     return group_leader_id
 
 
+def _request_verification_code(client) -> str:
+    """Call POST /sellers/request-verification and return the issued code.
+
+    In test/dev mode the code is returned directly in the response body.
+    """
+    response = client.post("/sellers/request-verification", json={"email": "priya@gmail.com"})
+    assert response.status_code == 200, response.text
+    return response.json()["code"]
+
+
 # ---------------------------------------------------------------------------
 # POST /sellers — integration tests
 # ---------------------------------------------------------------------------
@@ -115,6 +138,7 @@ def test_register_seller_creates_and_returns_full_response(
     """Registering a seller should persist all fields and return 201 with the seller data."""
     bookstore_id = _seed_bookstore(bookstore_table)
     group_leader_id = _seed_group_leader(group_leaders_table, [bookstore_id])
+    code = _request_verification_code(integration_client)
 
     payload = {
         "first_name": "Priya",
@@ -122,6 +146,7 @@ def test_register_seller_creates_and_returns_full_response(
         "email": "priya@gmail.com",
         "group_leader_id": group_leader_id,
         "bookstore_id": bookstore_id,
+        "verification_code": code,
     }
 
     response = integration_client.post("/sellers", json=payload)
@@ -146,15 +171,21 @@ def test_register_seller_returns_409_for_duplicate_email(
     bookstore_id = _seed_bookstore(bookstore_table)
     group_leader_id = _seed_group_leader(group_leaders_table, [bookstore_id])
 
+    # First registration
+    code = _request_verification_code(integration_client)
     payload = {
         "first_name": "Priya",
         "last_name": "Sharma",
         "email": "priya@gmail.com",
         "group_leader_id": group_leader_id,
         "bookstore_id": bookstore_id,
+        "verification_code": code,
     }
-
     integration_client.post("/sellers", json=payload)
+
+    # Second attempt — need a fresh code since the first was consumed
+    code2 = _request_verification_code(integration_client)
+    payload["verification_code"] = code2
     response = integration_client.post("/sellers", json=payload)
 
     assert response.status_code == 409
@@ -166,6 +197,7 @@ def test_register_seller_returns_404_for_missing_group_leader(
 ):
     """Registering with an unknown group_leader_id should return 404."""
     bookstore_id = _seed_bookstore(bookstore_table)
+    code = _request_verification_code(integration_client)
 
     payload = {
         "first_name": "Priya",
@@ -173,6 +205,7 @@ def test_register_seller_returns_404_for_missing_group_leader(
         "email": "priya@gmail.com",
         "group_leader_id": "nonexistent-gl",
         "bookstore_id": bookstore_id,
+        "verification_code": code,
     }
 
     response = integration_client.post("/sellers", json=payload)
@@ -186,6 +219,7 @@ def test_register_seller_returns_404_for_missing_bookstore(
 ):
     """Registering with an unknown bookstore_id should return 404."""
     group_leader_id = _seed_group_leader(group_leaders_table, [])
+    code = _request_verification_code(integration_client)
 
     payload = {
         "first_name": "Priya",
@@ -193,12 +227,81 @@ def test_register_seller_returns_404_for_missing_bookstore(
         "email": "priya@gmail.com",
         "group_leader_id": group_leader_id,
         "bookstore_id": "nonexistent-bs",
+        "verification_code": code,
     }
 
     response = integration_client.post("/sellers", json=payload)
 
     assert response.status_code == 404
     assert "nonexistent-bs" in response.json()["detail"]
+
+
+def test_register_seller_returns_422_without_prior_verification(
+    integration_client, bookstore_table, group_leaders_table
+):
+    """POST /sellers without calling request-verification first should return 422."""
+    bookstore_id = _seed_bookstore(bookstore_table)
+    group_leader_id = _seed_group_leader(group_leaders_table, [bookstore_id])
+
+    payload = {
+        "first_name": "Priya",
+        "last_name": "Sharma",
+        "email": "priya@gmail.com",
+        "group_leader_id": group_leader_id,
+        "bookstore_id": bookstore_id,
+        "verification_code": "000000",  # no record stored
+    }
+
+    response = integration_client.post("/sellers", json=payload)
+
+    assert response.status_code == 422
+    assert "request-verification" in response.json()["detail"]
+
+
+def test_register_seller_returns_422_with_wrong_code(
+    integration_client, bookstore_table, group_leaders_table
+):
+    """POST /sellers with a code that doesn't match the stored code should return 422."""
+    bookstore_id = _seed_bookstore(bookstore_table)
+    group_leader_id = _seed_group_leader(group_leaders_table, [bookstore_id])
+    _request_verification_code(integration_client)  # stores a real code
+
+    payload = {
+        "first_name": "Priya",
+        "last_name": "Sharma",
+        "email": "priya@gmail.com",
+        "group_leader_id": group_leader_id,
+        "bookstore_id": bookstore_id,
+        "verification_code": "000000",  # deliberately wrong
+    }
+
+    response = integration_client.post("/sellers", json=payload)
+
+    assert response.status_code == 422
+    assert "Invalid verification code" in response.json()["detail"]
+
+
+def test_verification_code_is_deleted_after_successful_registration(
+    integration_client, bookstore_table, group_leaders_table, verifications_table
+):
+    """After a successful registration the code record must be deleted (one-time use)."""
+    bookstore_id = _seed_bookstore(bookstore_table)
+    group_leader_id = _seed_group_leader(group_leaders_table, [bookstore_id])
+    code = _request_verification_code(integration_client)
+
+    payload = {
+        "first_name": "Priya",
+        "last_name": "Sharma",
+        "email": "priya@gmail.com",
+        "group_leader_id": group_leader_id,
+        "bookstore_id": bookstore_id,
+        "verification_code": code,
+    }
+    integration_client.post("/sellers", json=payload)
+
+    # Record must be gone from DynamoDB
+    record = verifications_table.get_item(Key={"email": "priya@gmail.com"}).get("Item")
+    assert record is None
 
 
 # ---------------------------------------------------------------------------
@@ -212,6 +315,7 @@ def test_get_seller_returns_registered_seller(
     """Fetching a seller by ID after registration should return the same data."""
     bookstore_id = _seed_bookstore(bookstore_table)
     group_leader_id = _seed_group_leader(group_leaders_table, [bookstore_id])
+    code = _request_verification_code(integration_client)
 
     payload = {
         "first_name": "Priya",
@@ -219,6 +323,7 @@ def test_get_seller_returns_registered_seller(
         "email": "priya@gmail.com",
         "group_leader_id": group_leader_id,
         "bookstore_id": bookstore_id,
+        "verification_code": code,
     }
     created = integration_client.post("/sellers", json=payload).json()
     seller_id = created["seller_id"]
