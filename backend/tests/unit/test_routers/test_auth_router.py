@@ -2,6 +2,9 @@
 
 Verifies HTTP behaviour using FastAPI TestClient with a mocked
 AbstractAuthService injected via Depends(). No repository, no DynamoDB.
+
+Covers both dev/test mode (base64url token) and prod mode (Cognito JWT via
+mocked CognitoJWTVerifier dependency).
 """
 
 from unittest.mock import MagicMock
@@ -12,7 +15,8 @@ from fastapi.testclient import TestClient
 from bookrover.interfaces.abstract_auth_service import AbstractAuthService
 from bookrover.main import create_app
 from bookrover.models.auth import MeResponse
-from bookrover.routers.auth import get_auth_service
+from bookrover.routers.auth import get_auth_service, get_cognito_verifier
+from bookrover.utils.cognito_jwt_verifier import CognitoJWTVerifier
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -165,3 +169,112 @@ def test_mock_token_returns_404_when_app_env_is_prod(mock_service):
     prod_client = TestClient(app)
     response = prod_client.post("/dev/mock-token", json={"email": "admin@example.com"})
     assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# GET /me — production mode (Cognito JWT path)
+# ---------------------------------------------------------------------------
+# These tests override both get_settings (APP_ENV=prod) and
+# get_cognito_verifier (mock verifier) so no real AWS calls are made.
+
+
+def _make_prod_client(mock_service, mock_verifier):
+    """Build a TestClient that simulates the production auth path.
+
+    Both the auth service and the Cognito verifier are mocked, so no
+    DynamoDB calls and no real JWT verification occur.
+
+    Args:
+        mock_service: MagicMock standing in for AbstractAuthService.
+        mock_verifier: MagicMock standing in for CognitoJWTVerifier.
+
+    Returns:
+        FastAPI TestClient with production settings and mocked dependencies.
+    """
+    from bookrover.config import Settings
+    from bookrover.dependencies import get_settings
+
+    prod_settings = Settings(
+        app_env="prod",
+        cognito_user_pool_id="ap-south-1_TestPool",
+        cognito_region="ap-south-1",
+    )
+    app = create_app()
+    app.dependency_overrides[get_auth_service] = lambda: mock_service
+    app.dependency_overrides[get_settings] = lambda: prod_settings
+    app.dependency_overrides[get_cognito_verifier] = lambda: mock_verifier
+    return TestClient(app)
+
+
+def test_get_me_prod_returns_200_when_verifier_succeeds(mock_service):
+    """In prod mode, a valid Cognito token is verified and email passed to service."""
+    email = "cognito.user@example.com"
+    mock_verifier = MagicMock(spec=CognitoJWTVerifier)
+    mock_verifier.verify.return_value = email
+    mock_service.get_me.return_value = MeResponse(email=email, roles=["seller"])
+
+    prod_client = _make_prod_client(mock_service, mock_verifier)
+    response = prod_client.get(
+        "/me", headers={"Authorization": "Bearer some.cognito.jwt"}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["email"] == email
+    mock_verifier.verify.assert_called_once_with("some.cognito.jwt")
+    mock_service.get_me.assert_called_once_with(email)
+
+
+def test_get_me_prod_passes_raw_token_to_verifier(mock_service):
+    """The raw Bearer token string (without 'Bearer ' prefix) is passed to verify()."""
+    mock_verifier = MagicMock(spec=CognitoJWTVerifier)
+    mock_verifier.verify.return_value = "user@example.com"
+    mock_service.get_me.return_value = MeResponse(email="user@example.com", roles=[])
+
+    prod_client = _make_prod_client(mock_service, mock_verifier)
+    prod_client.get("/me", headers={"Authorization": "Bearer eyJhbGciOiJSUzI1NiJ9"})
+
+    mock_verifier.verify.assert_called_once_with("eyJhbGciOiJSUzI1NiJ9")
+
+
+def test_get_me_prod_returns_401_when_verifier_raises_value_error(mock_service):
+    """If CognitoJWTVerifier.verify() raises ValueError, GET /me returns 401."""
+    mock_verifier = MagicMock(spec=CognitoJWTVerifier)
+    mock_verifier.verify.side_effect = ValueError("Token expired")
+
+    prod_client = _make_prod_client(mock_service, mock_verifier)
+    response = prod_client.get(
+        "/me", headers={"Authorization": "Bearer expired.token.here"}
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid token."
+
+
+def test_get_me_prod_returns_401_when_no_authorization_header(mock_service):
+    """In prod mode, a missing Authorization header still returns 401."""
+    mock_verifier = MagicMock(spec=CognitoJWTVerifier)
+    prod_client = _make_prod_client(mock_service, mock_verifier)
+
+    response = prod_client.get("/me")
+
+    assert response.status_code == 401
+    mock_verifier.verify.assert_not_called()
+
+
+def test_get_me_prod_does_not_call_dev_token_decoder(mock_service):
+    """In prod mode, the base64url dev-token decoder is not used even for a valid base64 string."""
+    import base64
+
+    mock_verifier = MagicMock(spec=CognitoJWTVerifier)
+    mock_verifier.verify.return_value = "user@example.com"
+    mock_service.get_me.return_value = MeResponse(email="user@example.com", roles=[])
+
+    # A valid dev token (base64url of email).  In prod mode this must go
+    # through the verifier, not the dev decoder.
+    dev_token = base64.urlsafe_b64encode(b"user@example.com").decode()
+    prod_client = _make_prod_client(mock_service, mock_verifier)
+    prod_client.get("/me", headers={"Authorization": f"Bearer {dev_token}"})
+
+    # The verifier must have been called — not bypassed by the dev decoder.
+    mock_verifier.verify.assert_called_once_with(dev_token)
+

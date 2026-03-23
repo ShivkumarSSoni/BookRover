@@ -17,6 +17,8 @@ class Settings(BaseSettings):
         dynamodb_endpoint_url: Optional local endpoint (moto_server). None in production.
         table_prefix: Prefix for all DynamoDB table names. Always 'bookrover'.
         cors_allowed_origins: List of allowed CORS origins. Restrict to CloudFront URL in prod.
+        cognito_user_pool_id: Cognito User Pool ID for JWT verification (prod only).
+        cognito_region: AWS region of the Cognito User Pool (prod only).
     """
 
     app_env: str = "dev"
@@ -25,6 +27,8 @@ class Settings(BaseSettings):
     table_prefix: str = "bookrover"
     cors_allowed_origins: list[str] = ["*"]
     admin_emails: list[str] = []
+    cognito_user_pool_id: str = ""
+    cognito_region: str = "ap-south-1"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

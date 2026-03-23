@@ -4,11 +4,13 @@ Handles:
 - GET /me         — decode the caller's token, resolve their BookRover roles.
 - POST /dev/mock-token — (dev only) issue a token for any email address.
 
-In development (APP_ENV=dev) the token is base64url(email). There is no
-cryptographic security — this is a local dev shortcut only.
+In development/test (APP_ENV != 'prod') the token is base64url(email).
+There is no cryptographic security — this is a local dev shortcut only.
 
-In production (APP_ENV=prod) the /dev/mock-token endpoint returns 404 and
-GET /me would validate a real Cognito JWT (deferred to Phase 6).
+In production (APP_ENV=prod):
+- GET /me validates a Cognito ID token via CognitoJWTVerifier, extracts the
+  verified email claim, then resolves BookRover roles as usual.
+- POST /dev/mock-token returns 404.
 """
 
 import base64
@@ -23,6 +25,7 @@ from bookrover.models.auth import MeResponse, MockTokenRequest, MockTokenRespons
 from bookrover.repositories.group_leader_repository import DynamoDBGroupLeaderRepository
 from bookrover.repositories.seller_repository import DynamoDBSellerRepository
 from bookrover.services.auth_service import AuthService
+from bookrover.utils.cognito_jwt_verifier import CognitoJWTVerifier
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +35,7 @@ _TOKEN_ENCODING = "utf-8"
 
 
 # ---------------------------------------------------------------------------
-# Dependency provider
+# Dependency providers
 # ---------------------------------------------------------------------------
 
 
@@ -62,6 +65,27 @@ def get_auth_service(
         seller_repository=seller_repo,
         group_leader_repository=group_leader_repo,
         admin_emails=settings.admin_emails,
+    )
+
+
+def get_cognito_verifier(
+    settings: Settings = Depends(get_settings),
+) -> CognitoJWTVerifier:
+    """Build and return a CognitoJWTVerifier for the current User Pool.
+
+    Only meaningful when APP_ENV=prod.  The verifier instance is constructed
+    on every request (lightweight — no network call until ``verify()`` is
+    called and the JWKS is not yet cached).
+
+    Args:
+        settings: Injected application settings.
+
+    Returns:
+        CognitoJWTVerifier configured for the User Pool in settings.
+    """
+    return CognitoJWTVerifier(
+        user_pool_id=settings.cognito_user_pool_id,
+        region=settings.cognito_region,
     )
 
 
@@ -130,21 +154,27 @@ def _extract_bearer_token(request: Request) -> str | None:
     description=(
         "Decodes the Bearer token from the Authorization header, resolves the "
         "caller's BookRover roles, and returns their identity. "
-        "In dev mode the token is base64url(email). "
-        "In production a Cognito JWT would be verified here (deferred)."
+        "In dev/test mode the token is base64url(email). "
+        "In production a Cognito ID token is verified via CognitoJWTVerifier."
     ),
 )
 async def get_me(
     request: Request,
     settings: Settings = Depends(get_settings),
     auth_service: AbstractAuthService = Depends(get_auth_service),
+    cognito_verifier: CognitoJWTVerifier = Depends(get_cognito_verifier),
 ) -> MeResponse:
     """Resolve the caller's BookRover identity from their Bearer token.
+
+    In dev/test (APP_ENV != 'prod') the token is a base64url-encoded email
+    produced by POST /dev/mock-token.  In production the token is a Cognito
+    ID token which is cryptographically verified before the email is trusted.
 
     Args:
         request: Incoming HTTP request (Authorization header is read here).
         settings: Injected application settings.
         auth_service: Injected AbstractAuthService.
+        cognito_verifier: Injected CognitoJWTVerifier (used in prod only).
 
     Returns:
         MeResponse with roles, seller_id, and group_leader_id.
@@ -159,12 +189,22 @@ async def get_me(
             detail="Missing or invalid Authorization header.",
         )
 
-    email = _decode_dev_token(raw_token)
-    if not email:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token.",
-        )
+    if settings.app_env == "prod":
+        try:
+            email = cognito_verifier.verify(raw_token)
+        except ValueError as exc:
+            logger.warning("Cognito JWT verification failed: %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token.",
+            ) from exc
+    else:
+        email = _decode_dev_token(raw_token)
+        if not email:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token.",
+            )
 
     return auth_service.get_me(email)
 
