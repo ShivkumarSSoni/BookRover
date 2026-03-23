@@ -4,7 +4,7 @@ Verifies the JWT verification utility in isolation.  All network calls
 (JWKS fetch) are mocked — no real AWS or internet access required.
 
 Test RSA keys are generated once per module using the ``cryptography``
-library (installed as a transitive dependency of python-jose[cryptography]).
+library and signed using ``joserfc``.
 """
 
 import base64
@@ -16,7 +16,8 @@ import pytest
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from jose import jwt
+from joserfc import jwt
+from joserfc.jwk import KeySet, RSAKey
 
 from bookrover.utils.cognito_jwt_verifier import CognitoJWTVerifier
 
@@ -45,6 +46,9 @@ _TEST_CLIENT_ID = "test-client-id"
 _TEST_ISSUER = (
     f"https://cognito-idp.{_TEST_REGION}.amazonaws.com/{_TEST_POOL_ID}"
 )
+
+# joserfc signing key (private) — kid embedded via parameters.
+_SIGNING_KEY = RSAKey.import_key(_PRIVATE_KEY, parameters={"kid": _TEST_KID})
 
 
 # ---------------------------------------------------------------------------
@@ -88,6 +92,8 @@ def _make_token(
     issuer: str = _TEST_ISSUER,
     audience: str = _TEST_CLIENT_ID,
     exp_offset: int = 3600,
+    include_email: bool = True,
+    include_kid: bool = True,
 ) -> str:
     """Sign a test Cognito-like ID token with the test RSA private key.
 
@@ -97,26 +103,31 @@ def _make_token(
         issuer: Value for the ``iss`` claim.
         audience: Value for the ``aud`` claim.
         exp_offset: Seconds from now until the token expires.
+        include_email: Whether to include the ``email`` claim.
+        include_kid: Whether to include the ``kid`` header.
 
     Returns:
         Signed JWT string.
     """
     now = int(time.time())
-    claims = {
+    claims: dict = {
         "sub": "test-sub-id",
-        "email": email,
         "iss": issuer,
         "aud": audience,
         "iat": now,
         "exp": now + exp_offset,
         "token_use": "id",
     }
-    return jwt.encode(
-        claims,
-        _PRIVATE_KEY_PEM,
-        algorithm="RS256",
-        headers={"kid": kid},
-    )
+    if include_email:
+        claims["email"] = email
+
+    header: dict = {"alg": "RS256"}
+    if include_kid:
+        header["kid"] = kid
+
+    # Use a key without kid in header when include_kid is False
+    signing_key = _SIGNING_KEY if include_kid else RSAKey.import_key(_PRIVATE_KEY)
+    return jwt.encode(header, claims, signing_key)
 
 
 def _make_verifier(client_id: str = _TEST_CLIENT_ID) -> CognitoJWTVerifier:
@@ -126,15 +137,15 @@ def _make_verifier(client_id: str = _TEST_CLIENT_ID) -> CognitoJWTVerifier:
         client_id: App Client ID; empty string skips audience validation.
 
     Returns:
-        CognitoJWTVerifier instance with cached JWKS pre-loaded.
+        CognitoJWTVerifier instance with cached KeySet pre-loaded.
     """
     verifier = CognitoJWTVerifier(
         user_pool_id=_TEST_POOL_ID,
         region=_TEST_REGION,
         client_id=client_id,
     )
-    # Pre-populate the JWKS cache so no network call is needed.
-    verifier._jwks = _make_jwks()
+    # Pre-populate the KeySet cache so no network call is needed.
+    verifier._key_set = KeySet.import_key_set(_make_jwks())
     return verifier
 
 
@@ -154,7 +165,6 @@ def test_verify_returns_email_for_valid_token():
 def test_verify_returns_email_without_audience_validation():
     """Verifier with empty client_id skips audience claim validation."""
     verifier = _make_verifier(client_id="")
-    # Omit the aud claim entirely.
     now = int(time.time())
     claims = {
         "sub": "sub-xyz",
@@ -163,12 +173,7 @@ def test_verify_returns_email_without_audience_validation():
         "iat": now,
         "exp": now + 3600,
     }
-    token = jwt.encode(
-        claims,
-        _PRIVATE_KEY_PEM,
-        algorithm="RS256",
-        headers={"kid": _TEST_KID},
-    )
+    token = jwt.encode({"alg": "RS256", "kid": _TEST_KID}, claims, _SIGNING_KEY)
 
     assert verifier.verify(token) == "bob@example.com"
 
@@ -208,25 +213,24 @@ def test_verify_raises_value_error_for_wrong_audience():
 def test_verify_raises_value_error_for_unknown_kid():
     """A token whose kid is absent from the JWKS must raise ValueError."""
     verifier = _make_verifier()
-    token = _make_token(kid="unknown-key-id")
+    # Build a token signed with a different key (unknown kid) so signature fails.
+    different_key = rsa.generate_private_key(public_exponent=65537, key_size=2048, backend=default_backend())
+    signing_key = RSAKey.import_key(different_key, parameters={"kid": "unknown-key-id"})
+    now = int(time.time())
+    claims = {
+        "sub": "s", "email": "x@x.com", "iss": _TEST_ISSUER,
+        "aud": _TEST_CLIENT_ID, "iat": now, "exp": now + 3600,
+    }
+    token = jwt.encode({"alg": "RS256", "kid": "unknown-key-id"}, claims, signing_key)
 
-    with pytest.raises(ValueError, match="No matching key found"):
+    with pytest.raises(ValueError, match="JWT verification failed"):
         verifier.verify(token)
 
 
 def test_verify_raises_value_error_for_missing_kid_header():
-    """A token with no kid header must raise ValueError immediately."""
+    """A token with no kid header must raise ValueError."""
     verifier = _make_verifier()
-    # Encode without a kid header.
-    now = int(time.time())
-    claims = {
-        "email": "c@example.com",
-        "iss": _TEST_ISSUER,
-        "aud": _TEST_CLIENT_ID,
-        "iat": now,
-        "exp": now + 3600,
-    }
-    token = jwt.encode(claims, _PRIVATE_KEY_PEM, algorithm="RS256")
+    token = _make_token(include_kid=False)
 
     with pytest.raises(ValueError, match="missing the 'kid' field"):
         verifier.verify(token)
@@ -235,21 +239,7 @@ def test_verify_raises_value_error_for_missing_kid_header():
 def test_verify_raises_value_error_for_token_with_no_email_claim():
     """A valid-signature token that omits the email claim raises ValueError."""
     verifier = _make_verifier()
-    now = int(time.time())
-    claims = {
-        "sub": "sub-xyz",
-        "iss": _TEST_ISSUER,
-        "aud": _TEST_CLIENT_ID,
-        "iat": now,
-        "exp": now + 3600,
-        # Intentionally no 'email' claim.
-    }
-    token = jwt.encode(
-        claims,
-        _PRIVATE_KEY_PEM,
-        algorithm="RS256",
-        headers={"kid": _TEST_KID},
-    )
+    token = _make_token(include_email=False)
 
     with pytest.raises(ValueError, match="no 'email' claim"):
         verifier.verify(token)
@@ -268,8 +258,8 @@ def test_verify_raises_value_error_for_completely_malformed_token():
 # ---------------------------------------------------------------------------
 
 
-def test_get_jwks_fetches_once_and_caches():
-    """JWKS is fetched only once; subsequent calls use the in-memory cache."""
+def test_get_key_set_fetches_once_and_caches():
+    """KeySet is built only once; subsequent calls use the in-memory cache."""
     mock_response = MagicMock()
     mock_response.read.return_value = json.dumps(_make_jwks()).encode()
     mock_response.__enter__ = lambda s: s
@@ -282,9 +272,9 @@ def test_get_jwks_fetches_once_and_caches():
 
     with patch("urllib.request.urlopen", return_value=mock_response) as mock_open:
         # First call — should fetch.
-        verifier._get_jwks()
+        verifier._get_key_set()
         # Second call — should use cache.
-        verifier._get_jwks()
+        verifier._get_key_set()
 
     assert mock_open.call_count == 1
 
