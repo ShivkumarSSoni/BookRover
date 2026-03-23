@@ -20,6 +20,7 @@ Email verification flow (Gap 6 fix):
 import logging
 import secrets
 
+import boto3
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from bookrover.config import Settings
@@ -50,6 +51,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/sellers", tags=["Sellers"])
 
 _VERIFICATION_CODE_TTL_MINUTES = 10
+_SES_SUBJECT = "BookRover — Your seller registration code"
+_SES_BODY_TEMPLATE = (
+    "Your BookRover email verification code is: {code}\n\n"
+    "This code expires in 10 minutes. Do not share it with anyone.\n\n"
+    "If you did not request this code, ignore this email."
+)
 
 
 # ------------------------------------------------------------------
@@ -172,8 +179,8 @@ def _validate_and_consume_code(
         "email address for 10 minutes.  The code must be included in the subsequent "
         "POST /sellers call as ``verification_code``.\n\n"
         "**Dev/test mode:** the code is returned directly in the response body.\n\n"
-        "**Production:** the code is NOT returned — it would be sent to the "
-        "caller's email address via SES (integration point marked with TODO).\n\n"
+        "**Production:** the code is sent to the caller's email address via SES "
+        "and is NOT included in the response.\n\n"
         "The caller's email must match the email in the request body."
     ),
 )
@@ -209,9 +216,20 @@ async def request_verification(
     verification_repo.save(email, code, expires_at)
 
     if settings.app_env == "prod":
-        # TODO: send `code` to `email` via AWS SES before going live.
-        # Example: boto3.client("ses").send_email(...)
-        logger.info("Email verification code generated for seller registration")
+        boto3.client("ses", region_name=settings.dynamodb_region).send_email(
+            Source=settings.ses_sender_email,
+            Destination={"ToAddresses": [email]},
+            Message={
+                "Subject": {"Data": _SES_SUBJECT, "Charset": "UTF-8"},
+                "Body": {
+                    "Text": {
+                        "Data": _SES_BODY_TEMPLATE.format(code=code),
+                        "Charset": "UTF-8",
+                    }
+                },
+            },
+        )
+        logger.info("Verification code sent via SES for seller registration")
         return VerificationResponse(message="Verification code sent to your email address.")
 
     # Dev / test: return code directly so callers don't need a real inbox.
