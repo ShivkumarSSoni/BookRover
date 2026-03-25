@@ -33,7 +33,7 @@ function isValidEmail(value: string): boolean {
 }
 
 function isValidOtp(value: string): boolean {
-  return /^\d{6}$/.test(value);
+  return /^\d{6,8}$/.test(value);
 }
 
 function roleToPath(roles: BookRover.Role[]): string {
@@ -147,7 +147,7 @@ export default function LoginPage() {
         {isOtpPending && (
           <form onSubmit={handleOtpSubmit} noValidate className="space-y-4">
             <p className="text-sm text-gray-600 text-center">
-              We sent a 6-digit code to <strong>{email}</strong>. Enter it below.
+              We sent a sign-in code to <strong>{email}</strong>. Enter it below.
             </p>
 
             <div>
@@ -159,8 +159,8 @@ export default function LoginPage() {
                 type="text"
                 inputMode="numeric"
                 autoComplete="one-time-code"
-                placeholder="123456"
-                maxLength={6}
+                placeholder="12345678"
+                maxLength={8}
                 value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
                 className="w-full rounded-lg border border-gray-300 px-4 py-3 text-base tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"

@@ -270,14 +270,14 @@ HTTP API throttling is set on the `$default` stage and applies to every route. I
 
 > **Why not Usage Plans?** Usage Plans and API Keys are a **REST API** feature. BookRover uses an HTTP API, which does not support them. Stage-level throttling is the equivalent mechanism for HTTP API.
 
-1. In the API Gateway console, open `bookrover-http-api` → **Stages** in the left sidebar → click `$default`.
-2. Click **Edit**.
-3. Under **Default route throttle**, set:
+1. In the API Gateway console, open `bookrover-http-api` → **Protect** in the left sidebar → **Throttling**.
+2. Under **Default route throttling**, click **Edit**.
+3. Set:
    | Setting | Recommended value | Meaning |
    |---------|-------------------|---------|
-   | **Rate** | `50` | Maximum sustained requests per second across all callers |
-   | **Burst** | `100` | Maximum concurrent in-flight requests at any instant |
-4. Click **Save changes**.
+   | **Rate limit** | `50` | Maximum sustained requests per second across all callers |
+   | **Burst limit** | `100` | Maximum concurrent in-flight requests at any instant |
+4. Click **Save**.
 
 API Gateway will now return `HTTP 429 Too Many Requests` automatically when either limit is exceeded — no application code change needed.
 
@@ -334,41 +334,62 @@ AWS WAF is an independent web application firewall that sits in front of API Gat
 
 ### Step 4 — Provision Cognito User Pool (Authentication)
 
-BookRover uses AWS Cognito Email OTP for production authentication. Users enter their email address; Cognito sends a one-time 6-digit code; the frontend verifies the code and receives a JWT that is attached to every API request. No passwords — no password reset flows, no storage of credentials.
+BookRover uses AWS Cognito Email OTP for production authentication. Users enter their email address; Cognito sends a one-time sign-in code (6 or 8 digits depending on your pool's configuration); the frontend verifies the code and receives a JWT that is attached to every API request. No passwords — no password reset flows, no storage of credentials.
+
+> **Self-registration is built in.** The app automatically creates a Cognito account the first time any user logs in — no admin pre-provisioning required. On first login `signUp()` is called silently; on subsequent logins Cognito detects the existing account and issues the OTP directly.
 
 #### 4a — Create the User Pool
 
 1. Open the [Cognito console](https://console.aws.amazon.com/cognito) — confirm the region is `ap-south-1`.
-2. Click **Create user pool**.
-3. Under **Authentication providers**, select **Email** as the sign-in option. Click **Next**.
-4. On the **Security requirements** screen:
-   - **Multi-factor authentication:** select **No MFA** (the OTP code IS the authentication factor).
-   - Leave all other options at their defaults. Click **Next**.
-5. On the **Sign-up experience** screen, leave all defaults and click **Next**.
-6. On the **Message delivery** screen, select **Send email with Cognito** (uses Cognito's shared SES — free, no domain verification needed for low volumes). Click **Next**.
-7. On the **Integrate your app** screen:
-   - **User pool name:** `bookrover-prod`
-   - **App type:** Leave **Traditional web application** selected (you will change auth flows in the next step).
-   - **App client name:** `bookrover-frontend`
-   - **Client secret:** select **Don't generate a client secret** — the frontend is a public SPA and cannot keep a secret.
-   - Click **Next**.
-8. Review the summary and click **Create user pool**.
+2. If this is your first User Pool, you will see a landing page with two options. Click **Get started for free** under **"Add sign-in and sign-up experiences to your app"**. If you have existing User Pools, click **Create user pool** instead.
+3. You will land on a **"Set up resources for your application"** wizard. Fill it in as follows:
+   - **Application type:** Select **Single-page application (SPA)** — BookRover is a React app.
+   - **Name your application:** `bookrover-frontend`
+   - **Options for sign-in identifiers:** tick **Email** only (untick Phone number and Username if selected).
+   - **Self-registration:** tick **Enable self-registration** — this allows Cognito to create a user profile automatically on first Email OTP sign-in.
+   - **Required attributes for sign-up:** leave at defaults.
+   > AWS displays a banner: *"Options for sign-in identifiers and required attributes can't be changed after the app has been created."* This is informational — not an error. Confirm your selections are correct (Email sign-in, default required attributes) and proceed.
+4. The final wizard screen shows an optional **Return URL** field. Leave it **blank** — BookRover uses Amplify's API-based EMAIL_OTP flow, not Cognito's hosted UI redirect, so no callback URL is needed.
+5. Click **Create User Directory**.
+6. After creation, AWS shows a **"Set up resources for your application"** quick-start page with React/OIDC code snippets. **Ignore it entirely** — BookRover uses AWS Amplify with EMAIL_OTP, not the OIDC redirect flow shown there.
+7. The pool will be auto-named (e.g. `"User pool - abcd1x"`). The name you entered (`bookrover-frontend`) is the **App Client** name — it is separate. To rename the User Pool: on the User pool overview page, click **Rename** next to the pool name and enter `bookrover-prod`.
 
-#### 4b — Enable the EMAIL_OTP auth flow
+#### 4b — Enable EMAIL_OTP at the User Pool level
 
-Cognito's EMAIL_OTP (passwordless sign-in via one-time code) is configured on the App Client:
+BookRover uses Cognito's passwordless EMAIL_OTP sign-in. This must be enabled at two levels: the User Pool itself (here) and the App Client (next step).
 
-1. On the Cognito console, open the newly created `bookrover-prod` user pool.
+1. On the Cognito console, open the `bookrover-prod` user pool.
+2. Click the **Sign-in experience** tab.
+3. Scroll to **Passwordless authentication** (or **Email-based authentication**).
+4. Click **Edit**.
+5. Enable **Email OTP** (also shown as *"Allow users to sign in using an OTP sent via email"*).
+6. Click **Save changes**.
+
+> Without this step, Cognito only offers PASSWORD_SRP and PASSWORD challenges — the EMAIL_OTP challenge never appears in responses.
+
+#### 4c — Enable the EMAIL_OTP auth flow on the App Client
+
+EMAIL_OTP sign-in also requires specific auth flows enabled on the App Client:
+
+1. On the Cognito console, open the `bookrover-prod` user pool.
 2. Go to **App integration** → **App clients and analytics** → click `bookrover-frontend`.
 3. Click **Edit** next to **Authentication flows**.
-4. Enable both:
-   - **ALLOW_USER_AUTH** — enables the new multi-step auth flow
+4. `ALLOW_USER_SRP_AUTH` will already be checked — leave it as-is. Additionally enable:
+   - **ALLOW_USER_AUTH** — enables the multi-step auth flow required for EMAIL_OTP
    - **ALLOW_REFRESH_TOKEN_AUTH** — allows token refresh without re-authenticating
-5. Click **Save changes**.
+5. Leave the token expiration settings at their defaults:
+   - **Auth flow session duration:** 3 minutes (time to enter the OTP — sufficient)
+   - **Refresh token expiration:** 5 days (how long before full re-auth is needed)
+   - **Access token expiration:** 60 minutes (standard short-lived token)
+   - **ID token expiration:** 60 minutes (same as access token)
+6. Under **Advanced security configurations**, leave both options enabled (they are on by default):
+   - **Enable token revocation** — allows sign-out to invalidate tokens immediately (important if a device is lost)
+   - **Prevent user existence errors** — returns a generic auth failure instead of revealing whether an email is registered (prevents account enumeration)
+7. Click **Save changes**.
 
-> **Why ALLOW_USER_AUTH?** The Amplify `signIn()` call with `authFlowType: 'USER_AUTH'` requires this flow. It is the Cognito prerequisite for Email OTP step-up challenges.
+> **Why ALLOW_USER_AUTH?** The Amplify `signUp()` / `signIn()` calls with `authFlowType: 'USER_AUTH'` require this flow. It is the Cognito prerequisite for Email OTP challenges.
 
-#### 4c — Note your User Pool ID and App Client ID
+#### 4d — Note your User Pool ID and App Client ID
 
 1. On the **User pool overview** page, copy the **User pool ID** — it looks like `ap-south-1_XXXXXXXX`.
 2. Go to **App integration** → **App clients** → click `bookrover-frontend`. Copy the **Client ID**.
@@ -379,8 +400,8 @@ You will need both values in the next two places:
 |-------|-----|-------|
 | Lambda env vars | `COGNITO_USER_POOL_ID` | `ap-south-1_XXXXXXXX` |
 | Lambda env vars | `COGNITO_REGION` | `ap-south-1` |
-| Frontend `.env.production` | `VITE_COGNITO_USER_POOL_ID` | `ap-south-1_XXXXXXXX` |
-| Frontend `.env.production` | `VITE_COGNITO_CLIENT_ID` | `<client-id>` |
+| Frontend `.env.prod` | `VITE_COGNITO_USER_POOL_ID` | `ap-south-1_XXXXXXXX` |
+| Frontend `.env.prod` | `VITE_COGNITO_CLIENT_ID` | `<client-id>` |
 
 Update the Lambda environment variables now (Lambda console → `bookrover-api-prod` → **Configuration** → **Environment variables** → **Edit**). The frontend values are set in the next step when you build and deploy.
 
@@ -388,7 +409,110 @@ Update the Lambda environment variables now (Lambda console → `bookrover-api-p
 
 ### Step 5 — Deploy frontend to S3 + CloudFront
 
-Create a `.env.production` file in the `frontend/` directory (never commit it — it is already in `.gitignore`):
+#### 5a — Install and configure the AWS CLI
+
+The deployment commands require the AWS CLI. Install it once on your machine:
+
+**Windows:**
+1. Download the installer from `https://aws.amazon.com/cli/` and run it.
+2. Verify: open a new PowerShell window and run `aws --version`.
+3. Configure credentials:
+   ```powershell
+   aws configure
+   ```
+   Enter when prompted:
+   | Prompt | Value |
+   |--------|-------|
+   | AWS Access Key ID | Your IAM user access key |
+   | AWS Secret Access Key | Your IAM user secret key |
+   | Default region name | `ap-south-1` |
+   | Default output format | `json` |
+
+**Linux / macOS:**
+```bash
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip && sudo ./aws/install
+aws configure   # same prompts as above
+```
+
+> The IAM user used here needs `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket`, and `cloudfront:CreateInvalidation` permissions. The simplest approach for a personal deployment is to use your existing admin IAM user credentials, or create a dedicated deploy user and attach `AdministratorAccess` (or a scoped S3+CloudFront policy) to it.
+
+---
+
+#### 5b — Create the S3 bucket
+
+1. Open the [S3 console](https://console.aws.amazon.com/s3) — region does **not** matter for S3 (it is global), but choose `ap-south-1` for consistency.
+2. Click **Create bucket**.
+3. Fill in:
+   - **Bucket name:** `bookrover-frontend-prod` (must be globally unique — add a suffix if taken, e.g. `bookrover-frontend-prod-2026`)
+   - **AWS Region:** `ap-south-1`
+4. Under **Block Public Access settings**: **uncheck** "Block all public access". Acknowledge the warning. CloudFront will serve the files publicly via its own identity — you need the bucket to allow it.
+5. Leave all other settings at defaults and click **Create bucket**.
+6. Open the newly created bucket → **Properties** tab → scroll to **Static website hosting** → **Edit**:
+   - Enable static website hosting
+   - **Index document:** `index.html`
+   - **Error document:** `index.html` (React router handles 404s client-side)
+   - Click **Save changes**.
+7. Go to the **Permissions** tab → **Bucket policy** → **Edit**, paste the policy below (replace `bookrover-frontend-prod` with your actual bucket name):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::bookrover-frontend-prod/*"
+    }
+  ]
+}
+```
+
+Click **Save changes**.
+
+---
+
+#### 5c — Create the CloudFront distribution
+
+1. Open the [CloudFront console](https://console.aws.amazon.com/cloudfront) → **Create distribution**.
+2. You will see a **"Get started"** screen before the origin settings. Fill it in as follows:
+   - **Distribution name:** `bookrover-frontend-prod`
+   - **Description:** leave blank (optional)
+   - **Distribution type:** select **Single website or app**
+   - **Domain (Route 53):** leave blank — skip this optional field unless you have a custom domain in Route 53
+   - Click **Next** (or scroll down to continue to the Origin section).
+3. Under **Origin**:
+   - **Origin domain:** The CloudFront dropdown only lists S3 REST endpoints (`.s3.amazonaws.com`) — do **not** select from the dropdown. Instead, **type the website endpoint manually**:
+     1. Open a new browser tab → S3 console → your bucket → **Properties** tab → scroll to **Static website hosting** → copy the **Bucket website endpoint** URL.
+     2. It looks like: `bookrover-frontend-prod.s3-website.ap-south-1.amazonaws.com`
+     3. Paste **only the hostname** (no `http://`) into the CloudFront **Origin domain** field.
+   - Leave **Origin path** blank.
+4. Under **Settings** (directly below Origin):
+   - **Origin settings:** select **Use recommended origin settings**
+   - **Cache settings:** select **Use recommended cache settings tailored to serving S3 content**
+   - Click **Next**.
+5. On the **Enable security** screen (AWS WAF):
+   - Select **Do not enable security protections** — WAF adds ~$14/month minimum; skip for now. (See step 3f if you want to add WAF later.)
+   - Click **Next**.
+6. You will see a **"Review and create"** summary page — verify the origin shows your S3 website endpoint and Security shows "None". Click **Create distribution**.
+7. Wait for the distribution **Status** to change from `Deploying` to `Enabled` (takes a few minutes).
+8. **Set the default root object** (required — the wizard skips this):
+   - Open the distribution → **Settings** tab → **Edit**.
+   - **Default root object:** `index.html`
+   - Click **Save changes**.
+9. Copy the **Distribution domain name** from the distribution overview — it looks like `d1234abcd.cloudfront.net`. This is your app's public URL.
+
+> **After you have the CloudFront URL**, go back and update the Lambda env var:
+> - Lambda console → `bookrover-api-prod` → **Configuration** → **Environment variables** → **Edit**
+> - Set `CORS_ALLOWED_ORIGINS` → `["https://d1234abcd.cloudfront.net"]` (replace with your actual domain)
+> - Save.
+
+---
+
+#### 5d — Create the `.env.prod` file and build
+
+Create `frontend/.env.prod` (never commit it — it is already in `.gitignore`):
 
 ```env
 VITE_API_BASE_URL=https://YOUR_INVOKE_URL
@@ -399,27 +523,34 @@ VITE_COGNITO_CLIENT_ID=your-app-client-id
 
 Build and deploy:
 
-```bash
+```powershell
 cd frontend
 npm install
-npm run build
-aws s3 sync dist/ s3://your-bucket-name --delete
+npm run build -- --mode prod
+aws s3 sync dist/ s3://bookrover-frontend-prod --delete
 ```
 
-Invalidate the CloudFront cache after each deploy:
+> `--mode prod` tells Vite to load `.env.prod` instead of the default `.env.production`.
 
-```bash
+Invalidate the CloudFront cache after each deploy so users get the latest build immediately:
+
+```powershell
 aws cloudfront create-invalidation --distribution-id YOUR_DIST_ID --paths "/*"
 ```
+
+Replace `YOUR_DIST_ID` with the Distribution ID shown in the CloudFront console (format: `E1ABCDEF2GHIJK`).
 
 ### Step 6 — First login as Admin
 
 1. Navigate to your CloudFront URL (e.g. `https://d1234abcd.cloudfront.net`).
 2. Enter the email address you put in `ADMIN_EMAILS` and click **Send sign-in code**.
-3. Cognito sends a 6-digit OTP to your inbox — enter it in the verification screen.
-4. The frontend exchanges the Cognito session for a JWT and calls `GET /me`. The backend verifies the JWT, finds your email in `ADMIN_EMAILS`, and returns `role: admin`.
-5. You will be routed to `/admin` automatically.
-6. From `/admin`, create bookstores and group leaders.
+3. The app silently calls Cognito `signUp` behind the scenes — Cognito creates the admin account and sends a sign-in code to your inbox.
+4. Enter the code in the verification screen. The code may be 6 or 8 digits depending on your Cognito pool configuration — enter all digits shown in the email.
+5. The frontend exchanges the Cognito session for a JWT and calls `GET /me`. The backend verifies the JWT, finds your email in `ADMIN_EMAILS`, and returns `role: admin`.
+6. You will be routed to `/admin` automatically.
+7. From `/admin`, create bookstores and group leaders.
+
+> **OTP email not arriving?** Check your **Spam / Junk** folder — Cognito's default sender is `no-reply@verificationemail.com`. For reliable inbox delivery in production, configure Amazon SES: Cognito console → `bookrover-prod` → **Messaging** → **Email** → switch from "Cognito default" to "Send email with Amazon SES". SES requires verifying your sending domain or address and may require exiting the SES sandbox for non-verified recipients.
 
 After this first login, the app is operational. Group leaders receive their invitation by having a group leader record created for them by the admin — they authenticate with their email OTP and are matched to that record automatically.
 

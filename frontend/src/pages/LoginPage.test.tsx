@@ -287,6 +287,12 @@ describe('LoginPage', () => {
       expect(screen.getByRole('button', { name: /verify code/i })).toBeEnabled();
     });
 
+    it('enables Verify button when exactly 8 digits are entered', async () => {
+      renderOtpForm();
+      await userEvent.type(screen.getByLabelText(/sign-in code/i), '12345678');
+      expect(screen.getByRole('button', { name: /verify code/i })).toBeEnabled();
+    });
+
     it('calls confirmOtp with the entered code on submit', async () => {
       mockConfirmOtp.mockResolvedValue(undefined);
       renderOtpForm();
