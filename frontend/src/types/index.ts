@@ -5,4 +5,4 @@
  *   import { BookRover } from '../types';
  */
 
-export { BookRover } from './admin';
+export type { BookRover } from './admin';

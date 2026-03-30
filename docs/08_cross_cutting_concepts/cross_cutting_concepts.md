@@ -98,6 +98,49 @@ Example: `test_create_sale_when_quantity_exceeds_stock_returns_400`
 
 ---
 
+## 8.8 Session Management (Stateless JWT)
+
+BookRover uses a **stateless, token-based session model**. There is no server-side session store, no session ID, and no sticky routing requirement.
+
+### How It Works
+
+1. **Authentication**: The user signs in via Amazon Cognito (email + OTP). On success, Cognito issues three tokens:
+   - **ID token** — contains the user's identity claims (`sub`, `email`, `custom:role`). Valid for **60 minutes**.
+   - **Access token** — authorises API calls. Valid for **60 minutes**.
+   - **Refresh token** — used to silently obtain new ID/access tokens. Valid for **5 days**.
+
+2. **Token storage**: AWS Amplify stores all three tokens in the browser's `localStorage` (keyed by Cognito pool ID and client ID). No cookie is set; no session ID is issued.
+
+3. **API request flow**: On every API call the frontend includes the ID token in the HTTP request header:
+   ```
+   Authorization: Bearer <id_token>
+   ```
+
+4. **Per-request verification**: The Lambda function validates the token on every request:
+   - Downloads Cognito's public JWKS from `https://cognito-idp.<region>.amazonaws.com/<pool_id>/.well-known/jwks.json` (cached after first fetch).
+   - Verifies the JWT signature, issuer (`iss`), audience (`aud`), and expiry (`exp`).
+   - Extracts `custom:role` from the token claims — no database lookup required for authorisation.
+
+5. **Silent refresh**: Amplify automatically uses the refresh token to obtain new ID/access tokens before they expire. The user session therefore lasts up to **5 days** without re-authentication, as long as the browser tab remains open.
+
+6. **Sign-out**: Calling `signOut()` clears all tokens from `localStorage`. The previously issued tokens remain technically valid until their `exp` timestamp — there is no server-side revocation. For BookRover's use case (bookshop operator tool, single admin) this is acceptable.
+
+### Why Lambda Statelessness Is Not a Problem
+
+Lambda functions can scale horizontally and any instance can handle any request — because all session state lives in the JWT token itself, not in server memory. No shared cache or sticky sessions are needed.
+
+### Security Properties
+
+| Property | Detail |
+|----------|--------|
+| Token signing | RS256 (RSA 2048-bit), keys managed by Cognito |
+| Token transport | HTTPS only (CloudFront + API Gateway enforce TLS) |
+| XSS exposure | `localStorage` is accessible to JavaScript; mitigated by React's default output escaping and no `dangerouslySetInnerHTML` |
+| CSRF | Not applicable — `Authorization: Bearer` header cannot be set by cross-origin form submissions |
+| Token revocation | Not supported (stateless by design); refresh token window is 5 days |
+
+---
+
 ## 8.8 Idempotency
 
 - `PUT` (update) endpoints are idempotent — calling the same request twice produces the same result.
